@@ -27,16 +27,31 @@
     window.db = db;
     window.docRef = docRef;
 
-    // Синхронизация в реальном времени с облаком
+    // Нормализация данных в массив сессий
+    function normalizeActivities(data) {
+      if (!data) return {};
+      const res = {};
+      for (const [date, val] of Object.entries(data)) {
+        if (Array.isArray(val)) {
+          res[date] = val;
+        } else if (val && typeof val === 'object' && val.minutes) {
+          res[date] = [{ id: Date.now() + Math.random(), minutes: val.minutes, tag: val.tag || 'Другое' }];
+        } else {
+          res[date] = [];
+        }
+      }
+      return res;
+    }
+
     onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const remote = docSnap.data();
-        if (remote.activities) window.loggedActivities = remote.activities;
+        window.loggedActivities = normalizeActivities(remote.activities);
         if (remote.tags) window.tagsCatalog = remote.tags;
         if (remote.tasks) window.taskItems = remote.tasks;
         if (remote.topics) window.grammarTopics = remote.topics;
         
-        localStorage.setItem("dt_activities", JSON.stringify(window.loggedActivities));
+        localStorage.setItem("dt_activities_v2", JSON.stringify(window.loggedActivities));
         localStorage.setItem("dt_tags", JSON.stringify(window.tagsCatalog));
         localStorage.setItem("dt_tasks", JSON.stringify(window.taskItems));
         localStorage.setItem("dt_topics", JSON.stringify(window.grammarTopics));
@@ -52,12 +67,12 @@
     window.pushCloudData = async function() {
       try {
         await setDoc(docRef, {
-          activities: window.loggedActivities,
-          tags: window.tagsCatalog,
-          tasks: window.taskItems,
-          topics: window.grammarTopics,
+          activities: window.loggedActivities || {},
+          tags: window.tagsCatalog || [],
+          tasks: window.taskItems || [],
+          topics: window.grammarTopics || {},
           lastUpdated: Date.now()
-        }, { merge: true });
+        });
         window.setSyncStatus(true);
       } catch (e) {
         console.error("Cloud save error:", e);
@@ -77,6 +92,7 @@
       --text-muted: #64748b;
       --accent: #2563eb;
       --accent-light: #38bdf8;
+      --danger: #ef4444;
       
       --heat-empty: #0e172a;
       --heat-15: #1e3a8a;
@@ -102,7 +118,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 1.5rem 1rem 3rem 1rem;
+      padding: 1rem 1rem 3rem 1rem;
       overflow-x: hidden;
     }
 
@@ -111,19 +127,17 @@
       max-width: 820px;
       display: flex;
       align-items: center;
-      justify-content: center;
-      position: relative;
-      margin-bottom: 1.75rem;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 1.5rem;
     }
 
     .btn-hamburger {
-      position: absolute;
-      left: 0;
       background: var(--card-bg);
       border: 1px solid var(--card-border);
       color: var(--text-main);
-      width: 40px;
-      height: 40px;
+      width: 38px;
+      height: 38px;
       border-radius: 10px;
       display: flex;
       flex-direction: column;
@@ -131,27 +145,28 @@
       align-items: center;
       gap: 4px;
       cursor: pointer;
+      flex-shrink: 0;
     }
 
     .btn-hamburger span {
-      width: 18px;
+      width: 17px;
       height: 2px;
       background: #cbd5e1;
       border-radius: 2px;
     }
 
     .cloud-indicator {
-      position: absolute;
-      right: 0;
       display: flex;
       align-items: center;
       gap: 6px;
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       color: var(--text-muted);
       background: var(--card-bg);
       border: 1px solid var(--card-border);
-      padding: 0.4rem 0.75rem;
+      padding: 0.4rem 0.65rem;
       border-radius: 999px;
+      flex-shrink: 0;
+      user-select: none;
     }
 
     .cloud-dot {
@@ -172,20 +187,27 @@
       background: #080d1a;
       border: 1px solid var(--card-border);
       border-radius: 999px;
-      padding: 4px;
-      gap: 4px;
+      padding: 3px;
+      gap: 2px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .nav-tabs-pill::-webkit-scrollbar {
+      display: none;
     }
 
     .tab-btn {
       background: transparent;
       border: none;
       color: var(--text-muted);
-      padding: 0.45rem 1.25rem;
+      padding: 0.45rem 0.9rem;
       border-radius: 999px;
-      font-size: 0.88rem;
+      font-size: 0.82rem;
       font-weight: 500;
       cursor: pointer;
       transition: all 0.2s;
+      white-space: nowrap;
     }
 
     .tab-btn.active {
@@ -193,13 +215,29 @@
       color: #38bdf8;
     }
 
+    @media (max-width: 520px) {
+      .top-header-bar {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 10px;
+      }
+      .nav-tabs-pill {
+        width: 100%;
+        justify-content: space-around;
+      }
+      .tab-btn {
+        padding: 0.4rem 0.65rem;
+        font-size: 0.78rem;
+      }
+    }
+
     .title-area {
       text-align: center;
-      margin-bottom: 1.75rem;
+      margin-bottom: 1.5rem;
     }
 
     .title-area h1 {
-      font-size: 1.85rem;
+      font-size: 1.75rem;
       font-weight: 700;
       letter-spacing: -0.01em;
       margin-bottom: 0.35rem;
@@ -207,7 +245,7 @@
 
     .title-area p {
       color: var(--text-muted);
-      font-size: 0.88rem;
+      font-size: 0.85rem;
     }
 
     .main-wrap {
@@ -227,7 +265,7 @@
       background: var(--card-bg);
       border: 1px solid var(--card-border);
       border-radius: 14px;
-      padding: 1.5rem 1.75rem;
+      padding: 1.25rem 1.5rem;
       margin-bottom: 1rem;
     }
 
@@ -251,10 +289,12 @@
     }
 
     .nav-switch-row h2 {
-      font-size: 1.35rem;
+      font-size: 1.25rem;
       font-weight: 700;
+      text-align: center;
     }
 
+    /* Хитмап */
     .heatmap-layout {
       width: 100%;
       display: flex;
@@ -366,22 +406,23 @@
       background: var(--card-bg);
       border: 1px solid var(--card-border);
       border-radius: 12px;
-      padding: 1.25rem 0.75rem;
+      padding: 1.15rem 0.75rem;
       text-align: center;
     }
 
     .stat-tile .num {
-      font-size: 1.5rem;
+      font-size: 1.4rem;
       font-weight: 700;
       color: #fff;
       margin-bottom: 0.25rem;
     }
 
     .stat-tile .sub {
-      font-size: 0.78rem;
+      font-size: 0.75rem;
       color: var(--text-muted);
     }
 
+    /* Календарь Месяца */
     .month-calendar-grid {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
@@ -400,13 +441,17 @@
       background: #0e162a;
       border: 1px solid var(--card-border);
       border-radius: 8px;
-      min-height: 60px;
+      min-height: 58px;
       padding: 6px;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
       cursor: pointer;
       transition: border-color 0.2s;
+    }
+
+    .month-cell:hover {
+      border-color: var(--accent-light);
     }
 
     .month-cell.has-activity {
@@ -425,36 +470,135 @@
     }
 
     .month-cell .day-badge {
-      font-size: 0.68rem;
+      font-size: 0.65rem;
       color: var(--accent-light);
       align-self: flex-end;
+      text-align: right;
     }
 
+    /* Вкладка Все время и Круговая диаграмма */
     .alltime-summary {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 1rem;
-      margin-bottom: 1.5rem;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
     }
 
+    .chart-section-card {
+      background: #080e1b;
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      margin-top: 1rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .chart-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #cbd5e1;
+      margin-bottom: 1.25rem;
+    }
+
+    .chart-container-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .chart-wheel-wrap {
+      position: relative;
+      width: 140px;
+      height: 140px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .chart-wheel {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: conic-gradient(#1e293b 0% 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.3s ease;
+    }
+
+    .chart-wheel-center {
+      width: 88px;
+      height: 88px;
+      border-radius: 50%;
+      background: #080e1b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #fff;
+      box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+    }
+
+    .chart-legend-col {
+      flex: 1;
+      min-width: 200px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .chart-legend-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.82rem;
+      color: #94a3b8;
+    }
+
+    .chart-legend-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .chart-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .chart-legend-pct {
+      font-weight: 600;
+      color: #e2e8f0;
+    }
+
+    /* Компактные плашки списка активностей */
     .activity-breakdown-list {
       display: flex;
       flex-direction: column;
-      gap: 0.65rem;
-      margin-top: 1rem;
+      gap: 0.45rem;
+      margin-top: 0.75rem;
     }
 
     .breakdown-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0.65rem 0.9rem;
+      padding: 0.5rem 0.85rem;
       background: #0e162a;
       border: 1px solid var(--card-border);
       border-radius: 8px;
-      font-size: 0.85rem;
+      font-size: 0.82rem;
     }
 
+    /* Кнопка записи */
     .btn-log-time {
       width: 100%;
       background: #0f182c;
@@ -469,11 +613,48 @@
       transition: background 0.2s;
     }
 
+    .btn-log-time:hover {
+      background: #14223d;
+    }
+
+    /* Задачи и список занятий за день */
     .day-tasks-box {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
       border-radius: 14px;
       padding: 1.5rem;
+    }
+
+    .day-sessions-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-top: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .day-session-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #101c33;
+      border: 1px solid #1f355c;
+      color: #7dd3fc;
+      padding: 0.3rem 0.65rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+    }
+
+    .day-session-del {
+      background: transparent;
+      border: none;
+      color: #ef4444;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 0.85rem;
+      line-height: 1;
+      display: flex;
+      align-items: center;
     }
 
     .task-bar-wrap {
@@ -561,6 +742,7 @@
       font-size: 1.1rem;
     }
 
+    /* Модалки и Боковая панель */
     .drawer-backdrop {
       position: fixed;
       inset: 0;
@@ -906,7 +1088,7 @@
 </head>
 <body>
 
-  <!-- Навигация -->
+  <!-- Верхняя панель -->
   <div class="top-header-bar">
     <button class="btn-hamburger" onclick="toggleDrawer()" title="Меню тем">
       <span></span>
@@ -921,7 +1103,6 @@
       <button class="tab-btn" onclick="navigateToTab('day')">День</button>
     </div>
 
-    <!-- Индикатор облака -->
     <div class="cloud-indicator" id="cloud-indicator">
       <div class="cloud-dot" id="cloud-dot"></div>
       <span id="cloud-status-text">Cloud Sync</span>
@@ -933,7 +1114,7 @@
     <p>Отслеживайте время занятий, регулярность и ежедневные цели</p>
   </div>
 
-  <!-- Боковая панель -->
+  <!-- Меню тем -->
   <div class="drawer-backdrop" id="drawer-backdrop" onclick="toggleDrawer()"></div>
   <div class="side-drawer" id="side-drawer">
     <div class="drawer-head">
@@ -941,7 +1122,6 @@
       <button onclick="toggleDrawer()" style="background:none; border:none; color:var(--text-muted); font-size:1.4rem; cursor:pointer;">&times;</button>
     </div>
 
-    <!-- A1 -->
     <div class="level-block opened" id="block-a1">
       <div class="level-bar" onclick="toggleLevelBlock('a1')">
         <span>A1 (Anfänger)</span>
@@ -961,7 +1141,6 @@
       </div>
     </div>
 
-    <!-- A2 -->
     <div class="level-block" id="block-a2">
       <div class="level-bar" onclick="toggleLevelBlock('a2')">
         <span>A2 (Grundlegende)</span>
@@ -981,7 +1160,6 @@
       </div>
     </div>
 
-    <!-- B1 -->
     <div class="level-block" id="block-b1">
       <div class="level-bar" onclick="toggleLevelBlock('b1')">
         <span>B1 (Fortgeschrittene)</span>
@@ -1015,15 +1193,31 @@
           </div>
           <div class="stat-tile">
             <div class="num" id="all-total-days">0</div>
-            <div class="sub">Дней с занятиями</div>
+            <div class="sub">Дней с учёбой</div>
           </div>
           <div class="stat-tile">
             <div class="num" id="all-total-tasks">0</div>
-            <div class="sub">Выполнено тем</div>
+            <div class="sub">Тем пройдено</div>
           </div>
         </div>
 
-        <h3 style="font-size: 0.95rem; margin-top: 1.5rem; margin-bottom: 0.5rem; color: #cbd5e1;">Распределение по активностям</h3>
+        <!-- Круговая диаграмма распределения -->
+        <div class="chart-section-card">
+          <div class="chart-header-row">
+            <span>Распределение активностей</span>
+            <span style="color: var(--text-muted); font-size: 0.8rem;">Все время</span>
+          </div>
+          <div class="chart-container-row">
+            <div class="chart-wheel-wrap">
+              <div class="chart-wheel" id="donut-chart-wheel">
+                <div class="chart-wheel-center" id="donut-center-hours">0h</div>
+              </div>
+            </div>
+            <div class="chart-legend-col" id="donut-legend-col"></div>
+          </div>
+        </div>
+
+        <h3 style="font-size: 0.9rem; margin-top: 1.2rem; margin-bottom: 0.4rem; color: #cbd5e1;">Список по времени</h3>
         <div class="activity-breakdown-list" id="alltime-breakdown"></div>
       </div>
     </div>
@@ -1114,8 +1308,15 @@
     <button class="btn-log-time" onclick="openTimeDialog()">+ Записать активность / время</button>
 
     <div class="day-tasks-box">
-      <h3 id="day-box-title" style="margin-bottom: 0.35rem; font-size: 1.15rem;">Задачи</h3>
-      <p id="day-box-subtitle" style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.25rem;"></p>
+      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+        <div>
+          <h3 id="day-box-title" style="font-size: 1.15rem;">Задачи</h3>
+          <p id="day-box-subtitle" style="color: var(--text-muted); font-size: 0.85rem;"></p>
+        </div>
+        <button id="btn-clear-day-all" onclick="clearEntireDaySessions()" style="display:none; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.35); color:#f87171; border-radius:6px; font-size:0.75rem; padding:4px 9px; cursor:pointer;">Сбросить день</button>
+      </div>
+
+      <div class="day-sessions-wrap" id="day-sessions-list"></div>
 
       <div class="task-bar-wrap">
         <div class="task-bar-labels">
@@ -1178,16 +1379,22 @@
     let chosenMinutes = 0;
     let chosenTag = "Грамматика";
 
-    window.loggedActivities = JSON.parse(localStorage.getItem("dt_activities")) || {
-      "2026-05-12": { minutes: 15, tag: "Youtube" },
-      "2026-05-19": { minutes: 60, tag: "Грамматика" },
-      "2026-06-03": { minutes: 45, tag: "Anki" },
-      "2026-07-15": { minutes: 120, tag: "Reading" },
-      "2026-09-14": { minutes: 30, tag: "Грамматика" }
+    // Палитра цветов для диаграммы в стиле интерфейса
+    const TAG_PALETTE = [
+      "#38bdf8", "#f97316", "#10b981", "#eab308", "#ec4899", 
+      "#8b5cf6", "#06b6d4", "#f43f5e", "#84cc16", "#a855f7"
+    ];
+
+    // Хранение активностей как массива сессий { id, minutes, tag }
+    window.loggedActivities = JSON.parse(localStorage.getItem("dt_activities_v2")) || {
+      "2026-05-12": [{ id: 1, minutes: 15, tag: "Youtube" }],
+      "2026-05-19": [{ id: 2, minutes: 60, tag: "Грамматика" }],
+      "2026-06-03": [{ id: 3, minutes: 45, tag: "Anki" }],
+      "2026-07-15": [{ id: 4, minutes: 120, tag: "Reading" }]
     };
 
     window.tagsCatalog = JSON.parse(localStorage.getItem("dt_tags")) || [
-      "Anki", "Youtube", "Reading", "Praktika", "Грамматика", "Слова/тексты", "Упражнения/тесты", "Фразы"
+      "Грамматика", "Youtube", "Упражнения/тесты", "Praktika", "Фразы", "Anki", "Reading", "Слова/тексты"
     ];
 
     window.taskItems = JSON.parse(localStorage.getItem("dt_tasks")) || [
@@ -1209,6 +1416,12 @@
       ]
     };
 
+    function getDayTotalMinutes(dateKey) {
+      const list = window.loggedActivities[dateKey];
+      if (!list || !Array.isArray(list)) return 0;
+      return list.reduce((acc, item) => acc + (item.minutes || 0), 0);
+    }
+
     window.setSyncStatus = function(isOnline) {
       const dot = document.getElementById("cloud-dot");
       const txt = document.getElementById("cloud-status-text");
@@ -1224,7 +1437,7 @@
     };
 
     function triggerSync() {
-      localStorage.setItem("dt_activities", JSON.stringify(window.loggedActivities));
+      localStorage.setItem("dt_activities_v2", JSON.stringify(window.loggedActivities));
       localStorage.setItem("dt_tags", JSON.stringify(window.tagsCatalog));
       localStorage.setItem("dt_tasks", JSON.stringify(window.taskItems));
       localStorage.setItem("dt_topics", JSON.stringify(window.grammarTopics));
@@ -1261,16 +1474,22 @@
       if (tabName === 'day') renderDayView();
     }
 
+    // Вкладка «Все время» + Круговая диаграмма
     function renderAllTimeView() {
       let totalMin = 0;
       let studyDays = 0;
       const tagMap = {};
 
-      for (const [date, info] of Object.entries(window.loggedActivities)) {
-        if (info.minutes > 0) {
-          totalMin += info.minutes;
-          studyDays++;
-          tagMap[info.tag] = (tagMap[info.tag] || 0) + info.minutes;
+      for (const [date, sessions] of Object.entries(window.loggedActivities)) {
+        if (Array.isArray(sessions) && sessions.length > 0) {
+          const daySum = sessions.reduce((acc, s) => acc + s.minutes, 0);
+          if (daySum > 0) {
+            totalMin += daySum;
+            studyDays++;
+            sessions.forEach(s => {
+              tagMap[s.tag] = (tagMap[s.tag] || 0) + s.minutes;
+            });
+          }
         }
       }
 
@@ -1279,13 +1498,52 @@
         doneTopicsCount += list.filter(t => t.done).length;
       });
 
-      document.getElementById("all-total-hours").textContent = (totalMin / 60).toFixed(1) + "h";
+      const totalHours = (totalMin / 60).toFixed(1);
+      document.getElementById("all-total-hours").textContent = totalHours + "h";
       document.getElementById("all-total-days").textContent = studyDays;
       document.getElementById("all-total-tasks").textContent = doneTopicsCount;
+      document.getElementById("donut-center-hours").textContent = totalHours + "h";
 
+      // Сортировка активностей по убыванию минут
+      const sortedTags = Object.entries(tagMap).sort((a, b) => b[1] - a[1]);
+
+      // Построение круговой диаграммы
+      const legendCol = document.getElementById("donut-legend-col");
+      legendCol.innerHTML = "";
+
+      let conicStops = [];
+      let currentAngle = 0;
+
+      if (sortedTags.length === 0 || totalMin === 0) {
+        document.getElementById("donut-chart-wheel").style.background = `conic-gradient(#1e293b 0% 100%)`;
+        legendCol.innerHTML = `<div style="color:var(--text-muted); font-size:0.82rem;">Нет данных об активности</div>`;
+      } else {
+        sortedTags.forEach(([tag, min], idx) => {
+          const color = TAG_PALETTE[idx % TAG_PALETTE.length];
+          const pct = Math.round((min / totalMin) * 100);
+          const nextAngle = currentAngle + (min / totalMin) * 100;
+          conicStops.push(`${color} ${currentAngle}% ${nextAngle}%`);
+          currentAngle = nextAngle;
+
+          const item = document.createElement("div");
+          item.className = "chart-legend-item";
+          item.innerHTML = `
+            <div class="chart-legend-left">
+              <div class="chart-dot" style="background: ${color};"></div>
+              <span>${tag}</span>
+            </div>
+            <span class="chart-legend-pct">${pct}%</span>
+          `;
+          legendCol.appendChild(item);
+        });
+
+        document.getElementById("donut-chart-wheel").style.background = `conic-gradient(${conicStops.join(", ")})`;
+      }
+
+      // Компактный список активностей
       const breakdown = document.getElementById("alltime-breakdown");
       breakdown.innerHTML = "";
-      for (const [tag, min] of Object.entries(tagMap)) {
+      for (const [tag, min] of sortedTags) {
         const row = document.createElement("div");
         row.className = "breakdown-row";
         row.innerHTML = `
@@ -1294,11 +1552,12 @@
         `;
         breakdown.appendChild(row);
       }
-      if (Object.keys(tagMap).length === 0) {
-        breakdown.innerHTML = `<div style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Пока нет записей</div>`;
+      if (sortedTags.length === 0) {
+        breakdown.innerHTML = `<div style="text-align:center; color:var(--text-muted); font-size:0.82rem; padding: 8px;">Пока нет записей</div>`;
       }
     }
 
+    // Хитмап года
     function renderYearHeatmap() {
       const matrix = document.getElementById("heatmap-matrix");
       matrix.innerHTML = "";
@@ -1321,21 +1580,23 @@
           square.classList.add("active-day");
         }
 
-        const log = window.loggedActivities[dateKey];
-        if (log && log.minutes > 0) {
-          totalMinutes += log.minutes;
+        const dayMin = getDayTotalMinutes(dateKey);
+        if (dayMin > 0) {
+          totalMinutes += dayMin;
           learningDays++;
-          tagFrequency[log.tag] = (tagFrequency[log.tag] || 0) + log.minutes;
+          (window.loggedActivities[dateKey] || []).forEach(s => {
+            tagFrequency[s.tag] = (tagFrequency[s.tag] || 0) + s.minutes;
+          });
 
-          if (log.minutes >= 360) square.style.background = "var(--heat-360)";
-          else if (log.minutes >= 180) square.style.background = "var(--heat-180)";
-          else if (log.minutes >= 120) square.style.background = "var(--heat-120)";
-          else if (log.minutes >= 60) square.style.background = "var(--heat-60)";
-          else if (log.minutes >= 30) square.style.background = "var(--heat-30)";
+          if (dayMin >= 360) square.style.background = "var(--heat-360)";
+          else if (dayMin >= 180) square.style.background = "var(--heat-180)";
+          else if (dayMin >= 120) square.style.background = "var(--heat-120)";
+          else if (dayMin >= 60) square.style.background = "var(--heat-60)";
+          else if (dayMin >= 30) square.style.background = "var(--heat-30)";
           else square.style.background = "var(--heat-15)";
         }
 
-        square.title = `${dateKey}: ${log ? log.minutes : 0} мин (${log ? log.tag : 'нет'})`;
+        square.title = `${dateKey}: ${dayMin} мин`;
         square.onclick = () => {
           chosenDate = dateKey;
           navigateToTab('day');
@@ -1361,6 +1622,7 @@
       renderYearHeatmap();
     }
 
+    // Календарь Месяца
     function renderMonthCalendar() {
       const monthNames = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
       const year = activeMonthDate.getFullYear();
@@ -1394,13 +1656,13 @@
         const cell = document.createElement("div");
         cell.className = "month-cell";
 
-        const rec = window.loggedActivities[dateStr];
-        if (rec && rec.minutes > 0) cell.classList.add("has-activity");
+        const dayMin = getDayTotalMinutes(dateStr);
+        if (dayMin > 0) cell.classList.add("has-activity");
         if (dateStr === chosenDate) cell.classList.add("is-selected");
 
         cell.innerHTML = `
           <div class="day-num">${d}</div>
-          ${rec && rec.minutes > 0 ? `<div class="day-badge">${rec.minutes}m • ${rec.tag}</div>` : ''}
+          ${dayMin > 0 ? `<div class="day-badge">${dayMin}m</div>` : ''}
         `;
 
         cell.onclick = () => {
@@ -1417,15 +1679,16 @@
       renderMonthCalendar();
     }
 
+    // Вкладка «День»
     function renderDayView() {
       const d = new Date(chosenDate);
       const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
       document.getElementById("day-view-title").textContent = d.toLocaleDateString('ru-RU', options);
 
-      const rec = window.loggedActivities[chosenDate];
+      const dayMin = getDayTotalMinutes(chosenDate);
       const banner = document.getElementById("day-summary-banner");
-      if (rec && rec.minutes > 0) {
-        banner.textContent = `Записано: ${rec.minutes} мин (${(rec.minutes / 60).toFixed(1)} ч) • Категория: ${rec.tag}`;
+      if (dayMin > 0) {
+        banner.innerHTML = `<span>Записано всего: <b>${dayMin} мин</b> (${(dayMin / 60).toFixed(1)} ч)</span>`;
       } else {
         banner.textContent = "В этот день пока не было зафиксировано занятий";
       }
@@ -1442,11 +1705,35 @@
 
     function syncDayDetails() {
       document.getElementById("day-box-title").textContent = `Задачи на: ${chosenDate}`;
-      const log = window.loggedActivities[chosenDate];
-      document.getElementById("day-box-subtitle").textContent = log 
-        ? `Занятий за день: ${log.minutes} мин (${log.tag})` 
-        : `Нет зарегистрированных занятий`;
+      const sessions = window.loggedActivities[chosenDate] || [];
+      const totalMin = getDayTotalMinutes(chosenDate);
+      
+      const sub = document.getElementById("day-box-subtitle");
+      const sessionsList = document.getElementById("day-sessions-list");
+      const btnClearAll = document.getElementById("btn-clear-day-all");
 
+      sessionsList.innerHTML = "";
+
+      if (totalMin > 0) {
+        sub.textContent = `Занятий за день: ${totalMin} мин`;
+        btnClearAll.style.display = "block";
+
+        // Бейджи отдельных сессий с кнопкой удаления крестиком
+        sessions.forEach(s => {
+          const badge = document.createElement("span");
+          badge.className = "day-session-badge";
+          badge.innerHTML = `
+            <span>${s.minutes} мин • ${s.tag}</span>
+            <button class="day-session-del" onclick="removeDaySession(${s.id})" title="Удалить только эту запись">&times;</button>
+          `;
+          sessionsList.appendChild(badge);
+        });
+      } else {
+        sub.textContent = `Нет зарегистрированных занятий`;
+        btnClearAll.style.display = "none";
+      }
+
+      // Задачи
       const container = document.getElementById("tasks-render-area");
       container.innerHTML = "";
 
@@ -1468,6 +1755,24 @@
       const percentage = window.taskItems.length ? Math.round((countDone / window.taskItems.length) * 100) : 0;
       document.getElementById("task-pct-txt").textContent = percentage + "%";
       document.getElementById("task-pct-line").style.width = percentage + "%";
+    }
+
+    // Удаление конкретной отдельной сессии
+    function removeDaySession(sessionId) {
+      if (!window.loggedActivities[chosenDate]) return;
+      window.loggedActivities[chosenDate] = window.loggedActivities[chosenDate].filter(s => s.id !== sessionId);
+      if (window.loggedActivities[chosenDate].length === 0) {
+        delete window.loggedActivities[chosenDate];
+      }
+      triggerSync();
+      window.renderAllViews();
+    }
+
+    // Полная очистка всех активностей за выбранный день
+    function clearEntireDaySessions() {
+      delete window.loggedActivities[chosenDate];
+      triggerSync();
+      window.renderAllViews();
     }
 
     function toggleTaskStatus(id) {
@@ -1494,6 +1799,7 @@
       syncDayDetails();
     }
 
+    // Боковое меню тем
     function toggleDrawer() {
       document.getElementById("side-drawer").classList.toggle("active");
       document.getElementById("drawer-backdrop").classList.toggle("active");
@@ -1573,6 +1879,7 @@
       renderGrammarTopics();
     }
 
+    // Теги активностей
     function renderActivityChips() {
       const wrapper = document.getElementById("chips-container");
       wrapper.innerHTML = "";
@@ -1598,13 +1905,6 @@
         pill.onclick = () => {
           chosenTag = t;
           renderActivityChips();
-        };
-
-        pill.oncontextmenu = (e) => {
-          e.preventDefault();
-          if (confirm(`Удалить активность "${t}"?`)) {
-            deleteCustomActivityTag(t);
-          }
         };
 
         wrapper.appendChild(pill);
@@ -1686,19 +1986,27 @@
       document.querySelectorAll(".btn-time-choice").forEach(b => b.classList.remove("active"));
     }
 
+    // Сохранение новой отдельной сессии в массив дня
     function saveActivityRecord() {
-      if (!window.loggedActivities[chosenDate]) {
-        window.loggedActivities[chosenDate] = { minutes: 0, tag: chosenTag };
+      if (chosenMinutes <= 0) {
+        return;
       }
-      window.loggedActivities[chosenDate].minutes += chosenMinutes;
-      window.loggedActivities[chosenDate].tag = chosenTag;
+      if (!window.loggedActivities[chosenDate]) {
+        window.loggedActivities[chosenDate] = [];
+      }
+      
+      window.loggedActivities[chosenDate].push({
+        id: Date.now(),
+        minutes: chosenMinutes,
+        tag: chosenTag
+      });
 
       triggerSync();
       closeTimeDialog();
       window.renderAllViews();
     }
 
-    // Первичный рендер
+    // Запуск
     window.renderAllViews();
   </script>
 </body>

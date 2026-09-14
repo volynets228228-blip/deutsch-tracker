@@ -4,6 +4,68 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Deutsch Tracker</title>
+  
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCVPIWtpmSsh4cabZoqBSMMv7ffSwHkTYY",
+      authDomain: "deutsch-tracker-2ac69.firebaseapp.com",
+      projectId: "deutsch-tracker-2ac69",
+      storageBucket: "deutsch-tracker-2ac69.firebasestorage.app",
+      messagingSenderId: "736291011124",
+      appId: "1:736291011124:web:de0317035d047493206861",
+      measurementId: "G-8WFQS9KBXG"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const docRef = doc(db, "tracker_data", "main_profile");
+
+    window.db = db;
+    window.docRef = docRef;
+
+    // Синхронизация в реальном времени с облаком
+    onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const remote = docSnap.data();
+        if (remote.activities) window.loggedActivities = remote.activities;
+        if (remote.tags) window.tagsCatalog = remote.tags;
+        if (remote.tasks) window.taskItems = remote.tasks;
+        if (remote.topics) window.grammarTopics = remote.topics;
+        
+        localStorage.setItem("dt_activities", JSON.stringify(window.loggedActivities));
+        localStorage.setItem("dt_tags", JSON.stringify(window.tagsCatalog));
+        localStorage.setItem("dt_tasks", JSON.stringify(window.taskItems));
+        localStorage.setItem("dt_topics", JSON.stringify(window.grammarTopics));
+
+        window.renderAllViews();
+        window.setSyncStatus(true);
+      }
+    }, (error) => {
+      console.warn("Firebase sync fallback:", error);
+      window.setSyncStatus(false);
+    });
+
+    window.pushCloudData = async function() {
+      try {
+        await setDoc(docRef, {
+          activities: window.loggedActivities,
+          tags: window.tagsCatalog,
+          tasks: window.taskItems,
+          topics: window.grammarTopics,
+          lastUpdated: Date.now()
+        }, { merge: true });
+        window.setSyncStatus(true);
+      } catch (e) {
+        console.error("Cloud save error:", e);
+        window.setSyncStatus(false);
+      }
+    };
+  </script>
+
   <style>
     :root {
       color-scheme: dark;
@@ -44,7 +106,6 @@
       overflow-x: hidden;
     }
 
-    /* Верхняя панель */
     .top-header-bar {
       width: 100%;
       max-width: 820px;
@@ -70,11 +131,6 @@
       align-items: center;
       gap: 4px;
       cursor: pointer;
-      transition: border-color 0.2s;
-    }
-
-    .btn-hamburger:hover {
-      border-color: #2a3d66;
     }
 
     .btn-hamburger span {
@@ -82,6 +138,33 @@
       height: 2px;
       background: #cbd5e1;
       border-radius: 2px;
+    }
+
+    .cloud-indicator {
+      position: absolute;
+      right: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      padding: 0.4rem 0.75rem;
+      border-radius: 999px;
+    }
+
+    .cloud-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #4ade80;
+      box-shadow: 0 0 6px rgba(74, 222, 128, 0.6);
+    }
+
+    .cloud-dot.offline {
+      background: #f59e0b;
+      box-shadow: none;
     }
 
     .nav-tabs-pill {
@@ -110,7 +193,6 @@
       color: #38bdf8;
     }
 
-    /* Заголовок */
     .title-area {
       text-align: center;
       margin-bottom: 1.75rem;
@@ -133,7 +215,6 @@
       max-width: 820px;
     }
 
-    /* Секции */
     .view-section {
       display: none;
     }
@@ -169,18 +250,11 @@
       font-size: 0.8rem;
     }
 
-    .btn-arrow:hover {
-      border-color: #38bdf8;
-      color: #fff;
-    }
-
     .nav-switch-row h2 {
       font-size: 1.35rem;
       font-weight: 700;
-      letter-spacing: 0.05em;
     }
 
-    /* Хитмап года */
     .heatmap-layout {
       width: 100%;
       display: flex;
@@ -275,7 +349,6 @@
       border-radius: 2px;
     }
 
-    /* Статистика */
     .stats-container {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -309,7 +382,6 @@
       color: var(--text-muted);
     }
 
-    /* Календарь Месяца */
     .month-calendar-grid {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
@@ -337,10 +409,6 @@
       transition: border-color 0.2s;
     }
 
-    .month-cell:hover {
-      border-color: var(--accent-light);
-    }
-
     .month-cell.has-activity {
       background: #111d38;
     }
@@ -362,7 +430,6 @@
       align-self: flex-end;
     }
 
-    /* Все время */
     .alltime-summary {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -388,7 +455,6 @@
       font-size: 0.85rem;
     }
 
-    /* Задачи и запись */
     .btn-log-time {
       width: 100%;
       background: #0f182c;
@@ -401,10 +467,6 @@
       cursor: pointer;
       margin-bottom: 1.25rem;
       transition: background 0.2s;
-    }
-
-    .btn-log-time:hover {
-      background: #14223d;
     }
 
     .day-tasks-box {
@@ -499,7 +561,6 @@
       font-size: 1.1rem;
     }
 
-    /* Модалки и Боковая панель */
     .drawer-backdrop {
       position: fixed;
       inset: 0;
@@ -607,15 +668,8 @@
       font-size: 0.85rem;
       cursor: pointer;
       font-weight: 500;
-      transition: all 0.2s;
     }
 
-    .btn-create-topic:hover {
-      background: #172540;
-      border-color: var(--accent-light);
-    }
-
-    /* Встроенная форма добавления новой темы */
     .inline-topic-form {
       display: none;
       flex-direction: column;
@@ -665,7 +719,6 @@
       cursor: pointer;
     }
 
-    /* Модалка записи занятия */
     .dialog-backdrop {
       position: fixed;
       inset: 0;
@@ -726,7 +779,6 @@
       margin-bottom: 1.2rem;
     }
 
-    /* Теги активностей с крестиком удаления */
     .chips-group {
       display: flex;
       flex-wrap: wrap;
@@ -746,13 +798,7 @@
       border-radius: 999px;
       font-size: 0.8rem;
       cursor: pointer;
-      position: relative;
       user-select: none;
-      transition: all 0.15s;
-    }
-
-    .chip-item:hover {
-      border-color: #2e446d;
     }
 
     .chip-item.active {
@@ -761,7 +807,6 @@
       color: #fff;
     }
 
-    /* Крестик удаления тега */
     .chip-delete-btn {
       display: none;
       align-items: center;
@@ -773,14 +818,7 @@
       height: 15px;
       border-radius: 50%;
       font-size: 0.65rem;
-      line-height: 1;
       cursor: pointer;
-      margin-left: 0.2rem;
-      transition: transform 0.1s;
-    }
-
-    .chip-delete-btn:hover {
-      transform: scale(1.2);
     }
 
     .chip-item:hover .chip-delete-btn {
@@ -882,15 +920,20 @@
       <button class="tab-btn" onclick="navigateToTab('month')">Месяц</button>
       <button class="tab-btn" onclick="navigateToTab('day')">День</button>
     </div>
+
+    <!-- Индикатор облака -->
+    <div class="cloud-indicator" id="cloud-indicator">
+      <div class="cloud-dot" id="cloud-dot"></div>
+      <span id="cloud-status-text">Cloud Sync</span>
+    </div>
   </div>
 
-  <!-- Заголовок -->
   <div class="title-area">
     <h1>Deutsch Tracker</h1>
     <p>Отслеживайте время занятий, регулярность и ежедневные цели</p>
   </div>
 
-  <!-- Выдвижное боковое меню -->
+  <!-- Боковая панель -->
   <div class="drawer-backdrop" id="drawer-backdrop" onclick="toggleDrawer()"></div>
   <div class="side-drawer" id="side-drawer">
     <div class="drawer-head">
@@ -908,8 +951,8 @@
         <div id="topics-a1"></div>
         <button class="btn-create-topic" id="btn-show-add-a1" onclick="showInlineAddTopic('A1')">+ Добавить тему</button>
         <div class="inline-topic-form" id="inline-form-a1">
-          <input type="text" id="topic-title-a1" placeholder="Название темы (например: Спряжение глаголов)" />
-          <input type="text" id="topic-url-a1" placeholder="Ссылка на источник (необязательно)" />
+          <input type="text" id="topic-title-a1" placeholder="Название темы..." />
+          <input type="text" id="topic-url-a1" placeholder="Ссылка на источник..." />
           <div class="inline-topic-form-btns">
             <button class="btn-inline-topic-save" onclick="saveInlineTopic('A1')">Сохранить</button>
             <button class="btn-inline-topic-cancel" onclick="hideInlineAddTopic('A1')">Отмена</button>
@@ -959,10 +1002,9 @@
     </div>
   </div>
 
-  <!-- Контент вкладок -->
   <div class="main-wrap">
 
-    <!-- ================= ВСЕ ВРЕМЯ ================= -->
+    <!-- ВСЕ ВРЕМЯ -->
     <div id="section-all" class="view-section">
       <div class="card-dashboard">
         <h2 style="font-size: 1.25rem; margin-bottom: 1rem; text-align: center;">Общий прогресс за всё время</h2>
@@ -986,7 +1028,7 @@
       </div>
     </div>
 
-    <!-- ================= ГОД ================= -->
+    <!-- ГОД -->
     <div id="section-year" class="view-section active">
       <div class="card-dashboard">
         <div class="nav-switch-row">
@@ -1044,7 +1086,7 @@
       </div>
     </div>
 
-    <!-- ================= МЕСЯЦ ================= -->
+    <!-- МЕСЯЦ -->
     <div id="section-month" class="view-section">
       <div class="card-dashboard">
         <div class="nav-switch-row">
@@ -1057,7 +1099,7 @@
       </div>
     </div>
 
-    <!-- ================= ДЕНЬ ================= -->
+    <!-- ДЕНЬ -->
     <div id="section-day" class="view-section">
       <div class="card-dashboard">
         <div class="nav-switch-row">
@@ -1069,7 +1111,6 @@
       </div>
     </div>
 
-    <!-- Общие блоки для дня -->
     <button class="btn-log-time" onclick="openTimeDialog()">+ Записать активность / время</button>
 
     <div class="day-tasks-box">
@@ -1137,7 +1178,7 @@
     let chosenMinutes = 0;
     let chosenTag = "Грамматика";
 
-    let loggedActivities = JSON.parse(localStorage.getItem("dt_activities")) || {
+    window.loggedActivities = JSON.parse(localStorage.getItem("dt_activities")) || {
       "2026-05-12": { minutes: 15, tag: "Youtube" },
       "2026-05-19": { minutes: 60, tag: "Грамматика" },
       "2026-06-03": { minutes: 45, tag: "Anki" },
@@ -1145,17 +1186,17 @@
       "2026-09-14": { minutes: 30, tag: "Грамматика" }
     };
 
-    let tagsCatalog = JSON.parse(localStorage.getItem("dt_tags")) || [
+    window.tagsCatalog = JSON.parse(localStorage.getItem("dt_tags")) || [
       "Anki", "Youtube", "Reading", "Praktika", "Грамматика", "Слова/тексты", "Упражнения/тесты", "Фразы"
     ];
 
-    let taskItems = JSON.parse(localStorage.getItem("dt_tasks")) || [
+    window.taskItems = JSON.parse(localStorage.getItem("dt_tasks")) || [
       { id: 1, text: "Артикли: der, die, das и множественное число", done: false },
       { id: 2, text: "Спряжение глаголов в Präsens (настоящее время)", done: false },
       { id: 3, text: "Порядок слов в простом предложении (глагол на 2 месте)", done: false }
     ];
 
-    let grammarTopics = JSON.parse(localStorage.getItem("dt_topics")) || {
+    window.grammarTopics = JSON.parse(localStorage.getItem("dt_topics")) || {
       "A1": [
         { id: 1, name: "Алфавит и правила чтения", done: true, url: "" },
         { id: 2, name: "Спряжение haben / sein", done: false, url: "https://de.wikipedia.org" }
@@ -1168,7 +1209,40 @@
       ]
     };
 
-    // Навигация
+    window.setSyncStatus = function(isOnline) {
+      const dot = document.getElementById("cloud-dot");
+      const txt = document.getElementById("cloud-status-text");
+      if (dot && txt) {
+        if (isOnline) {
+          dot.classList.remove("offline");
+          txt.textContent = "Synced";
+        } else {
+          dot.classList.add("offline");
+          txt.textContent = "Local";
+        }
+      }
+    };
+
+    function triggerSync() {
+      localStorage.setItem("dt_activities", JSON.stringify(window.loggedActivities));
+      localStorage.setItem("dt_tags", JSON.stringify(window.tagsCatalog));
+      localStorage.setItem("dt_tasks", JSON.stringify(window.taskItems));
+      localStorage.setItem("dt_topics", JSON.stringify(window.grammarTopics));
+      if (window.pushCloudData) {
+        window.pushCloudData();
+      }
+    }
+
+    window.renderAllViews = function() {
+      renderGrammarTopics();
+      renderYearHeatmap();
+      renderActivityChips();
+      syncDayDetails();
+      if (currentTab === 'all') renderAllTimeView();
+      if (currentTab === 'month') renderMonthCalendar();
+      if (currentTab === 'day') renderDayView();
+    };
+
     function navigateToTab(tabName) {
       currentTab = tabName;
       document.querySelectorAll(".tab-btn").forEach((b, idx) => {
@@ -1187,13 +1261,12 @@
       if (tabName === 'day') renderDayView();
     }
 
-    // Все время
     function renderAllTimeView() {
       let totalMin = 0;
       let studyDays = 0;
       const tagMap = {};
 
-      for (const [date, info] of Object.entries(loggedActivities)) {
+      for (const [date, info] of Object.entries(window.loggedActivities)) {
         if (info.minutes > 0) {
           totalMin += info.minutes;
           studyDays++;
@@ -1202,7 +1275,7 @@
       }
 
       let doneTopicsCount = 0;
-      Object.values(grammarTopics).forEach(list => {
+      Object.values(window.grammarTopics).forEach(list => {
         doneTopicsCount += list.filter(t => t.done).length;
       });
 
@@ -1226,7 +1299,6 @@
       }
     }
 
-    // Год
     function renderYearHeatmap() {
       const matrix = document.getElementById("heatmap-matrix");
       matrix.innerHTML = "";
@@ -1249,7 +1321,7 @@
           square.classList.add("active-day");
         }
 
-        const log = loggedActivities[dateKey];
+        const log = window.loggedActivities[dateKey];
         if (log && log.minutes > 0) {
           totalMinutes += log.minutes;
           learningDays++;
@@ -1289,7 +1361,6 @@
       renderYearHeatmap();
     }
 
-    // Месяц
     function renderMonthCalendar() {
       const monthNames = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
       const year = activeMonthDate.getFullYear();
@@ -1323,7 +1394,7 @@
         const cell = document.createElement("div");
         cell.className = "month-cell";
 
-        const rec = loggedActivities[dateStr];
+        const rec = window.loggedActivities[dateStr];
         if (rec && rec.minutes > 0) cell.classList.add("has-activity");
         if (dateStr === chosenDate) cell.classList.add("is-selected");
 
@@ -1346,13 +1417,12 @@
       renderMonthCalendar();
     }
 
-    // День
     function renderDayView() {
       const d = new Date(chosenDate);
       const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
       document.getElementById("day-view-title").textContent = d.toLocaleDateString('ru-RU', options);
 
-      const rec = loggedActivities[chosenDate];
+      const rec = window.loggedActivities[chosenDate];
       const banner = document.getElementById("day-summary-banner");
       if (rec && rec.minutes > 0) {
         banner.textContent = `Записано: ${rec.minutes} мин (${(rec.minutes / 60).toFixed(1)} ч) • Категория: ${rec.tag}`;
@@ -1370,10 +1440,9 @@
       renderDayView();
     }
 
-    // Задачи
     function syncDayDetails() {
       document.getElementById("day-box-title").textContent = `Задачи на: ${chosenDate}`;
-      const log = loggedActivities[chosenDate];
+      const log = window.loggedActivities[chosenDate];
       document.getElementById("day-box-subtitle").textContent = log 
         ? `Занятий за день: ${log.minutes} мин (${log.tag})` 
         : `Нет зарегистрированных занятий`;
@@ -1382,7 +1451,7 @@
       container.innerHTML = "";
 
       let countDone = 0;
-      taskItems.forEach(t => {
+      window.taskItems.forEach(t => {
         if (t.done) countDone++;
         const item = document.createElement("div");
         item.className = `task-card ${t.done ? 'is-done' : ''}`;
@@ -1396,20 +1465,20 @@
         container.appendChild(item);
       });
 
-      const percentage = taskItems.length ? Math.round((countDone / taskItems.length) * 100) : 0;
+      const percentage = window.taskItems.length ? Math.round((countDone / window.taskItems.length) * 100) : 0;
       document.getElementById("task-pct-txt").textContent = percentage + "%";
       document.getElementById("task-pct-line").style.width = percentage + "%";
     }
 
     function toggleTaskStatus(id) {
-      taskItems = taskItems.map(t => t.id === id ? { ...t, done: !t.done } : t);
-      localStorage.setItem("dt_tasks", JSON.stringify(taskItems));
+      window.taskItems = window.taskItems.map(t => t.id === id ? { ...t, done: !t.done } : t);
+      triggerSync();
       syncDayDetails();
     }
 
     function deleteTaskItem(id) {
-      taskItems = taskItems.filter(t => t.id !== id);
-      localStorage.setItem("dt_tasks", JSON.stringify(taskItems));
+      window.taskItems = window.taskItems.filter(t => t.id !== id);
+      triggerSync();
       syncDayDetails();
     }
 
@@ -1419,13 +1488,12 @@
       const val = input.value.trim();
       if (!val) return;
 
-      taskItems.push({ id: Date.now(), text: val, done: false });
+      window.taskItems.push({ id: Date.now(), text: val, done: false });
       input.value = "";
-      localStorage.setItem("dt_tasks", JSON.stringify(taskItems));
+      triggerSync();
       syncDayDetails();
     }
 
-    // Темы по уровням (Боковая панель)
     function toggleDrawer() {
       document.getElementById("side-drawer").classList.toggle("active");
       document.getElementById("drawer-backdrop").classList.toggle("active");
@@ -1439,7 +1507,7 @@
       ['A1', 'A2', 'B1'].forEach(lvl => {
         const box = document.getElementById(`topics-${lvl.toLowerCase()}`);
         box.innerHTML = "";
-        (grammarTopics[lvl] || []).forEach(item => {
+        (window.grammarTopics[lvl] || []).forEach(item => {
           const row = document.createElement("div");
           row.className = "topic-row";
           row.innerHTML = `
@@ -1456,18 +1524,17 @@
     }
 
     function toggleTopicState(lvl, id) {
-      grammarTopics[lvl] = grammarTopics[lvl].map(t => t.id === id ? { ...t, done: !t.done } : t);
-      localStorage.setItem("dt_topics", JSON.stringify(grammarTopics));
+      window.grammarTopics[lvl] = window.grammarTopics[lvl].map(t => t.id === id ? { ...t, done: !t.done } : t);
+      triggerSync();
       renderGrammarTopics();
     }
 
     function removeTopic(lvl, id) {
-      grammarTopics[lvl] = grammarTopics[lvl].filter(t => t.id !== id);
-      localStorage.setItem("dt_topics", JSON.stringify(grammarTopics));
+      window.grammarTopics[lvl] = window.grammarTopics[lvl].filter(t => t.id !== id);
+      triggerSync();
       renderGrammarTopics();
     }
 
-    // Инлайн-добавление тем (исправление кнопки «Добавить тему»)
     function showInlineAddTopic(lvl) {
       const lower = lvl.toLowerCase();
       document.getElementById(`btn-show-add-${lower}`).style.display = "none";
@@ -1494,24 +1561,23 @@
       if (!name) return;
 
       const url = urlInput.value.trim();
-      grammarTopics[lvl].push({
+      window.grammarTopics[lvl].push({
         id: Date.now(),
         name: name,
         url: url,
         done: false
       });
 
-      localStorage.setItem("dt_topics", JSON.stringify(grammarTopics));
+      triggerSync();
       hideInlineAddTopic(lvl);
       renderGrammarTopics();
     }
 
-    // Запись активности и управление тегами (с крестиком удаления)
     function renderActivityChips() {
       const wrapper = document.getElementById("chips-container");
       wrapper.innerHTML = "";
 
-      tagsCatalog.forEach(t => {
+      window.tagsCatalog.forEach(t => {
         const pill = document.createElement("span");
         pill.className = `chip-item ${chosenTag === t ? 'active' : ''}`;
         
@@ -1519,7 +1585,6 @@
         label.textContent = t;
         pill.appendChild(label);
 
-        // Крестик удаления
         const delBtn = document.createElement("button");
         delBtn.className = "chip-delete-btn";
         delBtn.innerHTML = "&times;";
@@ -1530,13 +1595,11 @@
         };
         pill.appendChild(delBtn);
 
-        // Выбор левым кликом
         pill.onclick = () => {
           chosenTag = t;
           renderActivityChips();
         };
 
-        // Удаление правым кликом мыши
         pill.oncontextmenu = (e) => {
           e.preventDefault();
           if (confirm(`Удалить активность "${t}"?`)) {
@@ -1567,10 +1630,10 @@
     }
 
     function deleteCustomActivityTag(tagToDelete) {
-      tagsCatalog = tagsCatalog.filter(t => t !== tagToDelete);
-      localStorage.setItem("dt_tags", JSON.stringify(tagsCatalog));
+      window.tagsCatalog = window.tagsCatalog.filter(t => t !== tagToDelete);
+      triggerSync();
       if (chosenTag === tagToDelete) {
-        chosenTag = tagsCatalog[0] || "";
+        chosenTag = window.tagsCatalog[0] || "";
       }
       renderActivityChips();
     }
@@ -1593,9 +1656,9 @@
       const inp = document.getElementById("custom-chip-text");
       const val = inp.value.trim();
       if (!val) return;
-      if (!tagsCatalog.includes(val)) {
-        tagsCatalog.push(val);
-        localStorage.setItem("dt_tags", JSON.stringify(tagsCatalog));
+      if (!window.tagsCatalog.includes(val)) {
+        window.tagsCatalog.push(val);
+        triggerSync();
       }
       chosenTag = val;
       renderActivityChips();
@@ -1624,25 +1687,19 @@
     }
 
     function saveActivityRecord() {
-      if (!loggedActivities[chosenDate]) {
-        loggedActivities[chosenDate] = { minutes: 0, tag: chosenTag };
+      if (!window.loggedActivities[chosenDate]) {
+        window.loggedActivities[chosenDate] = { minutes: 0, tag: chosenTag };
       }
-      loggedActivities[chosenDate].minutes += chosenMinutes;
-      loggedActivities[chosenDate].tag = chosenTag;
+      window.loggedActivities[chosenDate].minutes += chosenMinutes;
+      window.loggedActivities[chosenDate].tag = chosenTag;
 
-      localStorage.setItem("dt_activities", JSON.stringify(loggedActivities));
+      triggerSync();
       closeTimeDialog();
-      renderYearHeatmap();
-      renderMonthCalendar();
-      renderAllTimeView();
-      renderDayView();
+      window.renderAllViews();
     }
 
-    // Запуск
-    renderGrammarTopics();
-    renderYearHeatmap();
-    renderActivityChips();
-    syncDayDetails();
+    // Первичный рендер
+    window.renderAllViews();
   </script>
 </body>
 </html>

@@ -293,7 +293,7 @@
       text-align: center;
     }
 
-    /* Хитмап */
+    /* ХИТМАП ГОДА: 7 рядов строго с Пн по Вс */
     .heatmap-layout {
       width: 100%;
       display: flex;
@@ -326,6 +326,7 @@
       font-size: 0.68rem;
       color: var(--text-muted);
       user-select: none;
+      line-height: 10px;
     }
 
     .heatmap-matrix {
@@ -346,7 +347,13 @@
       transition: transform 0.1s ease;
     }
 
-    .heat-square:hover {
+    .heat-square.empty-offset {
+      background: transparent !important;
+      cursor: default;
+      pointer-events: none;
+    }
+
+    .heat-square:hover:not(.empty-offset) {
       transform: scale(1.3);
       z-index: 10;
       outline: 1px solid #fff;
@@ -1238,7 +1245,7 @@
       </div>
     </div>
 
-    <!-- ГОД -->
+    <!-- ГОД (Хитмап со строгой сеткой Пн–Вс) -->
     <div id="section-year" class="view-section active">
       <div class="card-dashboard">
         <div class="nav-switch-row">
@@ -1254,6 +1261,7 @@
           </div>
 
           <div class="heatmap-body">
+            <!-- 7 дней недели: M (Пн), W (Ср), F (Пт), S (Вс) -->
             <div class="days-labels">
               <span>M</span><span>W</span><span>F</span><span>S</span>
             </div>
@@ -1394,8 +1402,8 @@
     }
 
     let currentTab = 'year';
-    let activeYear = new Date().getFullYear();
-    let activeMonthDate = new Date();
+    let activeYear = 2026;
+    let activeMonthDate = new Date(2026, 8, 1);
     let chosenDate = getTodayString();
     let chosenMinutes = 0;
     let chosenTag = "Грамматика";
@@ -1410,10 +1418,8 @@
       "Грамматика", "Youtube", "Упражнения/тесты", "Praktika", "Фразы", "Anki", "Reading", "Слова/тексты"
     ];
 
-    // Привязка задач к конкретным датам { "2026-09-22": [ ... ] }
     let rawStoredTasks = JSON.parse(localStorage.getItem("dt_tasks_by_date"));
     if (!rawStoredTasks) {
-      // Плавная миграция старых задач на сегодняшний день
       let oldTasks = JSON.parse(localStorage.getItem("dt_tasks")) || [
         { id: 1, text: "Артикли: der, die, das и множественное число", done: false },
         { id: 2, text: "Спряжение глаголов в Präsens (настоящее время)", done: false },
@@ -1573,6 +1579,7 @@
       }
     }
 
+    /* ИСПРАВЛЕННЫЙ ХИТМАП: строго 1 ряд = Понедельник, 7 ряд = Воскресенье */
     function renderYearHeatmap() {
       const matrix = document.getElementById("heatmap-matrix");
       matrix.innerHTML = "";
@@ -1582,10 +1589,23 @@
       const firstDay = new Date(activeYear, 0, 1);
       const lastDay = new Date(activeYear, 11, 31);
 
+      // В JavaScript getDay(): 0 = Вс, 1 = Пн, 2 = Вт ... 6 = Сб.
+      // Преобразуем к формату: 0 = Понедельник, 6 = Воскресенье.
+      let startDayOfWeek = firstDay.getDay() - 1;
+      if (startDayOfWeek === -1) startDayOfWeek = 6;
+
+      // 1. Вставляем невидимые заглушки для первой недели, если год начался не с понедельника
+      for (let i = 0; i < startDayOfWeek; i++) {
+        const emptyOffset = document.createElement("div");
+        emptyOffset.className = "heat-square empty-offset";
+        matrix.appendChild(emptyOffset);
+      }
+
       let totalMinutes = 0;
       let learningDays = 0;
       const tagFrequency = {};
 
+      // 2. Отрисовываем все дни года
       for (let curr = new Date(firstDay); curr <= lastDay; curr.setDate(curr.getDate() + 1)) {
         const dateKey = `${curr.getFullYear()}-${String(curr.getMonth() + 1).padStart(2, '0')}-${String(curr.getDate()).padStart(2, '0')}`;
         const square = document.createElement("div");
@@ -1611,7 +1631,10 @@
           else square.style.background = "var(--heat-15)";
         }
 
-        square.title = `${dateKey}: ${dayMin} мин`;
+        // Подсказка с днем недели
+        const dayNames = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
+        square.title = `${dateKey} (${dayNames[curr.getDay()]}): ${dayMin} мин`;
+        
         square.onclick = () => {
           chosenDate = dateKey;
           navigateToTab('day');
@@ -1747,7 +1770,6 @@
         btnClearAll.style.display = "none";
       }
 
-      // Вывод задач конкретного выбранного дня
       const container = document.getElementById("tasks-render-area");
       container.innerHTML = "";
 
@@ -1762,7 +1784,6 @@
         item.className = `task-card ${t.done ? 'is-done' : ''}`;
         
         let moveBtnHtml = "";
-        // Если день прошлый, а задача не сделана — показываем кнопку переноса на сегодня
         if (isPastDay && !t.done) {
           moveBtnHtml = `<button class="btn-task-move" onclick="moveTaskToToday(${t.id})" title="Перенести в задачи на сегодня">→ На сегодня</button>`;
         }
@@ -1833,16 +1854,13 @@
       syncDayDetails();
     }
 
-    // Перенос незавершенной задачи из прошлого на текущий день
     function moveTaskToToday(id) {
       const currentList = window.tasksByDate[chosenDate] || [];
       const task = currentList.find(t => t.id === id);
       if (!task) return;
 
-      // Удаляем из прошлого дня
       window.tasksByDate[chosenDate] = currentList.filter(t => t.id !== id);
 
-      // Добавляем в список сегодняшнего дня
       const todayStr = getTodayString();
       if (!window.tasksByDate[todayStr]) {
         window.tasksByDate[todayStr] = [];
@@ -1853,22 +1871,18 @@
       syncDayDetails();
     }
 
-    // Автоматическая проверка наступления полуночи (00:00)
     function setupMidnightReset() {
       const now = new Date();
       const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 2);
       const msToMidnight = tomorrow.getTime() - now.getTime();
 
       setTimeout(() => {
-        // Если пользователь находился на вчерашней дате — переключаем на новый наступивший день
-        const todayStr = getTodayString();
-        chosenDate = todayStr;
+        chosenDate = getTodayString();
         window.renderAllViews();
-        setupMidnightReset(); // Запускаем цикл на следующую полночь
+        setupMidnightReset();
       }, msToMidnight);
     }
 
-    // Боковое меню тем
     function toggleDrawer() {
       document.getElementById("side-drawer").classList.toggle("active");
       document.getElementById("drawer-backdrop").classList.toggle("active");
@@ -1948,7 +1962,6 @@
       renderGrammarTopics();
     }
 
-    // Теги активностей
     function renderActivityChips() {
       const wrapper = document.getElementById("chips-container");
       wrapper.innerHTML = "";
@@ -2072,7 +2085,6 @@
       window.renderAllViews();
     }
 
-    // Запуск приложения и таймера полуночи
     setupMidnightReset();
     window.renderAllViews();
   </script>

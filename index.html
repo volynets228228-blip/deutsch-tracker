@@ -27,7 +27,6 @@
     window.db = db;
     window.docRef = docRef;
 
-    // Нормализация данных в массив сессий
     function normalizeActivities(data) {
       if (!data) return {};
       const res = {};
@@ -48,12 +47,12 @@
         const remote = docSnap.data();
         window.loggedActivities = normalizeActivities(remote.activities);
         if (remote.tags) window.tagsCatalog = remote.tags;
-        if (remote.tasks) window.taskItems = remote.tasks;
+        if (remote.tasksByDate) window.tasksByDate = remote.tasksByDate;
         if (remote.topics) window.grammarTopics = remote.topics;
         
         localStorage.setItem("dt_activities_v2", JSON.stringify(window.loggedActivities));
         localStorage.setItem("dt_tags", JSON.stringify(window.tagsCatalog));
-        localStorage.setItem("dt_tasks", JSON.stringify(window.taskItems));
+        localStorage.setItem("dt_tasks_by_date", JSON.stringify(window.tasksByDate));
         localStorage.setItem("dt_topics", JSON.stringify(window.grammarTopics));
 
         window.renderAllViews();
@@ -69,7 +68,7 @@
         await setDoc(docRef, {
           activities: window.loggedActivities || {},
           tags: window.tagsCatalog || [],
-          tasks: window.taskItems || [],
+          tasksByDate: window.tasksByDate || {},
           topics: window.grammarTopics || {},
           lastUpdated: Date.now()
         });
@@ -476,7 +475,7 @@
       text-align: right;
     }
 
-    /* Вкладка Все время и Круговая диаграмма */
+    /* Все время и Круговая диаграмма */
     .alltime-summary {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -579,7 +578,6 @@
       color: #e2e8f0;
     }
 
-    /* Компактные плашки списка активностей */
     .activity-breakdown-list {
       display: flex;
       flex-direction: column;
@@ -598,7 +596,6 @@
       font-size: 0.82rem;
     }
 
-    /* Кнопка записи */
     .btn-log-time {
       width: 100%;
       background: #0f182c;
@@ -617,7 +614,6 @@
       background: #14223d;
     }
 
-    /* Задачи и список занятий за день */
     .day-tasks-box {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
@@ -734,15 +730,36 @@
       font-size: 0.9rem;
     }
 
-    .task-card button {
+    .task-card-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-task-move {
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: #38bdf8;
+      border-radius: 6px;
+      padding: 2px 7px;
+      font-size: 0.72rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-task-move:hover {
+      background: rgba(56, 189, 248, 0.25);
+    }
+
+    .task-card button.btn-task-del {
       background: transparent;
       border: none;
       color: var(--text-muted);
       cursor: pointer;
       font-size: 1.1rem;
+      padding: 0 4px;
     }
 
-    /* Модалки и Боковая панель */
     .drawer-backdrop {
       position: fixed;
       inset: 0;
@@ -1201,7 +1218,6 @@
           </div>
         </div>
 
-        <!-- Круговая диаграмма распределения -->
         <div class="chart-section-card">
           <div class="chart-header-row">
             <span>Распределение активностей</span>
@@ -1298,7 +1314,7 @@
       <div class="card-dashboard">
         <div class="nav-switch-row">
           <button class="btn-arrow" onclick="moveDay(-1)">&lt;</button>
-          <h2 id="day-view-title">Понедельник, 14 сентября 2026</h2>
+          <h2 id="day-view-title">Вторник, 22 сентября 2026</h2>
           <button class="btn-arrow" onclick="moveDay(1)">&gt;</button>
         </div>
         <div id="day-summary-banner" style="text-align: center; color: var(--accent-light); font-size: 0.9rem; margin-bottom: 0.5rem;"></div>
@@ -1313,7 +1329,7 @@
           <h3 id="day-box-title" style="font-size: 1.15rem;">Задачи</h3>
           <p id="day-box-subtitle" style="color: var(--text-muted); font-size: 0.85rem;"></p>
         </div>
-        <button id="btn-clear-day-all" onclick="clearEntireDaySessions()" style="display:none; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.35); color:#f87171; border-radius:6px; font-size:0.75rem; padding:4px 9px; cursor:pointer;">Сбросить день</button>
+        <button id="btn-clear-day-all" onclick="clearEntireDaySessions()" style="display:none; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.35); color:#f87171; border-radius:6px; font-size:0.75rem; padding:4px 9px; cursor:pointer;">Сбросить время</button>
       </div>
 
       <div class="day-sessions-wrap" id="day-sessions-list"></div>
@@ -1372,36 +1388,41 @@
   </div>
 
   <script>
+    function getTodayString() {
+      const now = new Date();
+      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    }
+
     let currentTab = 'year';
-    let activeYear = 2026;
-    let activeMonthDate = new Date(2026, 8, 1);
-    let chosenDate = new Date().toISOString().split('T')[0];
+    let activeYear = new Date().getFullYear();
+    let activeMonthDate = new Date();
+    let chosenDate = getTodayString();
     let chosenMinutes = 0;
     let chosenTag = "Грамматика";
 
-    // Палитра цветов для диаграммы в стиле интерфейса
     const TAG_PALETTE = [
       "#38bdf8", "#f97316", "#10b981", "#eab308", "#ec4899", 
       "#8b5cf6", "#06b6d4", "#f43f5e", "#84cc16", "#a855f7"
     ];
 
-    // Хранение активностей как массива сессий { id, minutes, tag }
-    window.loggedActivities = JSON.parse(localStorage.getItem("dt_activities_v2")) || {
-      "2026-05-12": [{ id: 1, minutes: 15, tag: "Youtube" }],
-      "2026-05-19": [{ id: 2, minutes: 60, tag: "Грамматика" }],
-      "2026-06-03": [{ id: 3, minutes: 45, tag: "Anki" }],
-      "2026-07-15": [{ id: 4, minutes: 120, tag: "Reading" }]
-    };
-
+    window.loggedActivities = JSON.parse(localStorage.getItem("dt_activities_v2")) || {};
     window.tagsCatalog = JSON.parse(localStorage.getItem("dt_tags")) || [
       "Грамматика", "Youtube", "Упражнения/тесты", "Praktika", "Фразы", "Anki", "Reading", "Слова/тексты"
     ];
 
-    window.taskItems = JSON.parse(localStorage.getItem("dt_tasks")) || [
-      { id: 1, text: "Артикли: der, die, das и множественное число", done: false },
-      { id: 2, text: "Спряжение глаголов в Präsens (настоящее время)", done: false },
-      { id: 3, text: "Порядок слов в простом предложении (глагол на 2 месте)", done: false }
-    ];
+    // Привязка задач к конкретным датам { "2026-09-22": [ ... ] }
+    let rawStoredTasks = JSON.parse(localStorage.getItem("dt_tasks_by_date"));
+    if (!rawStoredTasks) {
+      // Плавная миграция старых задач на сегодняшний день
+      let oldTasks = JSON.parse(localStorage.getItem("dt_tasks")) || [
+        { id: 1, text: "Артикли: der, die, das и множественное число", done: false },
+        { id: 2, text: "Спряжение глаголов в Präsens (настоящее время)", done: false },
+        { id: 3, text: "Порядок слов в простом предложении (глагол на 2 месте)", done: false }
+      ];
+      window.tasksByDate = { [getTodayString()]: oldTasks };
+    } else {
+      window.tasksByDate = rawStoredTasks;
+    }
 
     window.grammarTopics = JSON.parse(localStorage.getItem("dt_topics")) || {
       "A1": [
@@ -1439,7 +1460,7 @@
     function triggerSync() {
       localStorage.setItem("dt_activities_v2", JSON.stringify(window.loggedActivities));
       localStorage.setItem("dt_tags", JSON.stringify(window.tagsCatalog));
-      localStorage.setItem("dt_tasks", JSON.stringify(window.taskItems));
+      localStorage.setItem("dt_tasks_by_date", JSON.stringify(window.tasksByDate));
       localStorage.setItem("dt_topics", JSON.stringify(window.grammarTopics));
       if (window.pushCloudData) {
         window.pushCloudData();
@@ -1474,7 +1495,6 @@
       if (tabName === 'day') renderDayView();
     }
 
-    // Вкладка «Все время» + Круговая диаграмма
     function renderAllTimeView() {
       let totalMin = 0;
       let studyDays = 0;
@@ -1504,10 +1524,7 @@
       document.getElementById("all-total-tasks").textContent = doneTopicsCount;
       document.getElementById("donut-center-hours").textContent = totalHours + "h";
 
-      // Сортировка активностей по убыванию минут
       const sortedTags = Object.entries(tagMap).sort((a, b) => b[1] - a[1]);
-
-      // Построение круговой диаграммы
       const legendCol = document.getElementById("donut-legend-col");
       legendCol.innerHTML = "";
 
@@ -1540,7 +1557,6 @@
         document.getElementById("donut-chart-wheel").style.background = `conic-gradient(${conicStops.join(", ")})`;
       }
 
-      // Компактный список активностей
       const breakdown = document.getElementById("alltime-breakdown");
       breakdown.innerHTML = "";
       for (const [tag, min] of sortedTags) {
@@ -1557,7 +1573,6 @@
       }
     }
 
-    // Хитмап года
     function renderYearHeatmap() {
       const matrix = document.getElementById("heatmap-matrix");
       matrix.innerHTML = "";
@@ -1572,7 +1587,7 @@
       const tagFrequency = {};
 
       for (let curr = new Date(firstDay); curr <= lastDay; curr.setDate(curr.getDate() + 1)) {
-        const dateKey = curr.toISOString().split('T')[0];
+        const dateKey = `${curr.getFullYear()}-${String(curr.getMonth() + 1).padStart(2, '0')}-${String(curr.getDate()).padStart(2, '0')}`;
         const square = document.createElement("div");
         square.className = "heat-square";
 
@@ -1622,7 +1637,6 @@
       renderYearHeatmap();
     }
 
-    // Календарь Месяца
     function renderMonthCalendar() {
       const monthNames = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
       const year = activeMonthDate.getFullYear();
@@ -1679,11 +1693,11 @@
       renderMonthCalendar();
     }
 
-    // Вкладка «День»
     function renderDayView() {
-      const d = new Date(chosenDate);
+      const [y, m, d] = chosenDate.split('-').map(Number);
+      const dateObj = new Date(y, m - 1, d);
       const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-      document.getElementById("day-view-title").textContent = d.toLocaleDateString('ru-RU', options);
+      document.getElementById("day-view-title").textContent = dateObj.toLocaleDateString('ru-RU', options);
 
       const dayMin = getDayTotalMinutes(chosenDate);
       const banner = document.getElementById("day-summary-banner");
@@ -1697,9 +1711,10 @@
     }
 
     function moveDay(delta) {
-      const d = new Date(chosenDate);
-      d.setDate(d.getDate() + delta);
-      chosenDate = d.toISOString().split('T')[0];
+      const [y, m, d] = chosenDate.split('-').map(Number);
+      const dateObj = new Date(y, m - 1, d);
+      dateObj.setDate(dateObj.getDate() + delta);
+      chosenDate = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
       renderDayView();
     }
 
@@ -1718,7 +1733,6 @@
         sub.textContent = `Занятий за день: ${totalMin} мин`;
         btnClearAll.style.display = "block";
 
-        // Бейджи отдельных сессий с кнопкой удаления крестиком
         sessions.forEach(s => {
           const badge = document.createElement("span");
           badge.className = "day-session-badge";
@@ -1733,31 +1747,44 @@
         btnClearAll.style.display = "none";
       }
 
-      // Задачи
+      // Вывод задач конкретного выбранного дня
       const container = document.getElementById("tasks-render-area");
       container.innerHTML = "";
 
+      const currentDayTasks = window.tasksByDate[chosenDate] || [];
+      const todayStr = getTodayString();
+      const isPastDay = chosenDate < todayStr;
+
       let countDone = 0;
-      window.taskItems.forEach(t => {
+      currentDayTasks.forEach(t => {
         if (t.done) countDone++;
         const item = document.createElement("div");
         item.className = `task-card ${t.done ? 'is-done' : ''}`;
+        
+        let moveBtnHtml = "";
+        // Если день прошлый, а задача не сделана — показываем кнопку переноса на сегодня
+        if (isPastDay && !t.done) {
+          moveBtnHtml = `<button class="btn-task-move" onclick="moveTaskToToday(${t.id})" title="Перенести в задачи на сегодня">→ На сегодня</button>`;
+        }
+
         item.innerHTML = `
           <div class="task-card-left" onclick="toggleTaskStatus(${t.id})">
             <input type="checkbox" ${t.done ? 'checked' : ''} onclick="event.stopPropagation(); toggleTaskStatus(${t.id})" />
             <span>${t.text}</span>
           </div>
-          <button onclick="deleteTaskItem(${t.id})">&times;</button>
+          <div class="task-card-right">
+            ${moveBtnHtml}
+            <button class="btn-task-del" onclick="deleteTaskItem(${t.id})">&times;</button>
+          </div>
         `;
         container.appendChild(item);
       });
 
-      const percentage = window.taskItems.length ? Math.round((countDone / window.taskItems.length) * 100) : 0;
+      const percentage = currentDayTasks.length ? Math.round((countDone / currentDayTasks.length) * 100) : 0;
       document.getElementById("task-pct-txt").textContent = percentage + "%";
       document.getElementById("task-pct-line").style.width = percentage + "%";
     }
 
-    // Удаление конкретной отдельной сессии
     function removeDaySession(sessionId) {
       if (!window.loggedActivities[chosenDate]) return;
       window.loggedActivities[chosenDate] = window.loggedActivities[chosenDate].filter(s => s.id !== sessionId);
@@ -1768,7 +1795,6 @@
       window.renderAllViews();
     }
 
-    // Полная очистка всех активностей за выбранный день
     function clearEntireDaySessions() {
       delete window.loggedActivities[chosenDate];
       triggerSync();
@@ -1776,13 +1802,17 @@
     }
 
     function toggleTaskStatus(id) {
-      window.taskItems = window.taskItems.map(t => t.id === id ? { ...t, done: !t.done } : t);
+      if (!window.tasksByDate[chosenDate]) return;
+      window.tasksByDate[chosenDate] = window.tasksByDate[chosenDate].map(t => 
+        t.id === id ? { ...t, done: !t.done } : t
+      );
       triggerSync();
       syncDayDetails();
     }
 
     function deleteTaskItem(id) {
-      window.taskItems = window.taskItems.filter(t => t.id !== id);
+      if (!window.tasksByDate[chosenDate]) return;
+      window.tasksByDate[chosenDate] = window.tasksByDate[chosenDate].filter(t => t.id !== id);
       triggerSync();
       syncDayDetails();
     }
@@ -1793,10 +1823,49 @@
       const val = input.value.trim();
       if (!val) return;
 
-      window.taskItems.push({ id: Date.now(), text: val, done: false });
+      if (!window.tasksByDate[chosenDate]) {
+        window.tasksByDate[chosenDate] = [];
+      }
+
+      window.tasksByDate[chosenDate].push({ id: Date.now(), text: val, done: false });
       input.value = "";
       triggerSync();
       syncDayDetails();
+    }
+
+    // Перенос незавершенной задачи из прошлого на текущий день
+    function moveTaskToToday(id) {
+      const currentList = window.tasksByDate[chosenDate] || [];
+      const task = currentList.find(t => t.id === id);
+      if (!task) return;
+
+      // Удаляем из прошлого дня
+      window.tasksByDate[chosenDate] = currentList.filter(t => t.id !== id);
+
+      // Добавляем в список сегодняшнего дня
+      const todayStr = getTodayString();
+      if (!window.tasksByDate[todayStr]) {
+        window.tasksByDate[todayStr] = [];
+      }
+      window.tasksByDate[todayStr].push({ ...task, id: Date.now() });
+
+      triggerSync();
+      syncDayDetails();
+    }
+
+    // Автоматическая проверка наступления полуночи (00:00)
+    function setupMidnightReset() {
+      const now = new Date();
+      const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 2);
+      const msToMidnight = tomorrow.getTime() - now.getTime();
+
+      setTimeout(() => {
+        // Если пользователь находился на вчерашней дате — переключаем на новый наступивший день
+        const todayStr = getTodayString();
+        chosenDate = todayStr;
+        window.renderAllViews();
+        setupMidnightReset(); // Запускаем цикл на следующую полночь
+      }, msToMidnight);
     }
 
     // Боковое меню тем
@@ -1986,11 +2055,8 @@
       document.querySelectorAll(".btn-time-choice").forEach(b => b.classList.remove("active"));
     }
 
-    // Сохранение новой отдельной сессии в массив дня
     function saveActivityRecord() {
-      if (chosenMinutes <= 0) {
-        return;
-      }
+      if (chosenMinutes <= 0) return;
       if (!window.loggedActivities[chosenDate]) {
         window.loggedActivities[chosenDate] = [];
       }
@@ -2006,7 +2072,8 @@
       window.renderAllViews();
     }
 
-    // Запуск
+    // Запуск приложения и таймера полуночи
+    setupMidnightReset();
     window.renderAllViews();
   </script>
 </body>

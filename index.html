@@ -2086,7 +2086,11 @@
 
     function toggleLevelBlock(cleanLvl) {
       const el = document.getElementById(`block-${cleanLvl}`);
-      if (el) el.classList.toggle("opened");
+      if (!el) return;
+      el.classList.toggle("opened");
+      const openedLevels = [...document.querySelectorAll(".level-block.opened")]
+        .map(block => block.id.replace(/^block-/, ""));
+      localStorage.setItem("dt_open_levels", JSON.stringify(openedLevels));
     }
 
     function sanitizeLevelId(lvl) {
@@ -2127,11 +2131,22 @@
       const levelsOrder = ["A1", "A2", "B1", "B2", "C1", "C2", "Общие источники"];
       const container = document.getElementById("drawer-levels-container");
       container.innerHTML = "";
+      const savedOpenLevels = localStorage.getItem("dt_open_levels");
+      let openedLevels;
+      if (savedOpenLevels === null) {
+        openedLevels = [sanitizeLevelId("A1")];
+      } else {
+        try {
+          openedLevels = JSON.parse(savedOpenLevels);
+        } catch (error) {
+          openedLevels = [];
+        }
+      }
 
       levelsOrder.forEach(lvl => {
         const cleanId = sanitizeLevelId(lvl);
         const topics = window.grammarTopics[lvl] || [];
-        const isDefaultOpened = lvl === "A1" ? "opened" : "";
+        const isDefaultOpened = openedLevels.includes(cleanId) ? "opened" : "";
 
         const block = document.createElement("div");
         block.className = `level-block ${isDefaultOpened}`;

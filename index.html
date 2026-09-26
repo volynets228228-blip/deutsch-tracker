@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Deutsch Tracker</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📚</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🇩🇪</text></svg>">
   
   <!-- Firebase SDK -->
   <script type="module">
@@ -49,12 +49,27 @@
         window.loggedActivities = normalizeActivities(remote.activities);
         if (remote.tags) window.tagsCatalog = remote.tags;
         if (remote.tasksByDate) window.tasksByDate = remote.tasksByDate;
-        if (remote.topics) window.grammarTopics = remote.topics;
         
+        if (remote.topics && (remote.roadmapVersion === "v5" || remote.roadmapVersion === "v6")) {
+          const localTopics = window.grammarTopics || {};
+          const mergedTopics = { ...remote.topics };
+          Object.entries(localTopics).forEach(([level, localItems]) => {
+            const remoteItems = mergedTopics[level] || [];
+            const remoteById = new Map(remoteItems.map(topic => [topic.id, topic]));
+            const localIds = new Set(localItems.map(topic => topic.id));
+            mergedTopics[level] = localItems.map(topic => ({
+              ...topic,
+              done: remoteById.has(topic.id) ? Boolean(remoteById.get(topic.id).done) : topic.done
+            }));
+            mergedTopics[level].push(...remoteItems.filter(topic => !localIds.has(topic.id)));
+          });
+          window.grammarTopics = mergedTopics;
+          localStorage.setItem("dt_topics_v6", JSON.stringify(window.grammarTopics));
+        }
+
         localStorage.setItem("dt_activities_v2", JSON.stringify(window.loggedActivities));
         localStorage.setItem("dt_tags", JSON.stringify(window.tagsCatalog));
         localStorage.setItem("dt_tasks_by_date", JSON.stringify(window.tasksByDate));
-        localStorage.setItem("dt_topics", JSON.stringify(window.grammarTopics));
 
         window.renderAllViews();
         window.setSyncStatus(true);
@@ -71,6 +86,7 @@
           tags: window.tagsCatalog || [],
           tasksByDate: window.tasksByDate || {},
           topics: window.grammarTopics || {},
+          roadmapVersion: "v6",
           lastUpdated: Date.now()
         });
         window.setSyncStatus(true);
@@ -294,7 +310,7 @@
       text-align: center;
     }
 
-    /* ХИТМАП ГОДА: 7 рядов строго с Пн по Вс */
+    /* Хитмап года */
     .heatmap-layout {
       width: 100%;
       display: flex;
@@ -483,7 +499,7 @@
       text-align: right;
     }
 
-    /* Все время и Круговая диаграмма */
+    /* Все время */
     .alltime-summary {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -498,6 +514,66 @@
       padding: 1.25rem;
       margin-top: 1rem;
       margin-bottom: 1.25rem;
+    }
+
+    .level-progress-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+    }
+
+    .level-progress-row {
+      display: grid;
+      grid-template-columns: 42px 1fr 68px;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .level-progress-name {
+      color: var(--text-main);
+      font-weight: 700;
+      font-size: 0.85rem;
+    }
+
+    .level-progress-track {
+      height: 10px;
+      background: #111c31;
+      border: 1px solid #1b2a47;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .level-progress-fill {
+      height: 100%;
+      min-width: 0;
+      background: linear-gradient(90deg, var(--accent), var(--accent-light));
+      border-radius: inherit;
+      transition: width 250ms ease;
+    }
+
+    .level-progress-value {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .level-progress-total {
+      margin-top: 1rem;
+      padding-top: 0.85rem;
+      border-top: 1px solid var(--card-border);
+      color: #cbd5e1;
+      font-size: 0.82rem;
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+
+    @media (max-width: 480px) {
+      .level-progress-row {
+        grid-template-columns: 34px 1fr 58px;
+        gap: 0.5rem;
+      }
     }
 
     .chart-header-row {
@@ -622,6 +698,7 @@
       background: #14223d;
     }
 
+    /* Задачи */
     .day-tasks-box {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
@@ -768,6 +845,7 @@
       padding: 0 4px;
     }
 
+    /* Меню тем */
     .drawer-backdrop {
       position: fixed;
       inset: 0;
@@ -784,9 +862,9 @@
     .side-drawer {
       position: fixed;
       top: 0;
-      left: -380px;
-      width: 360px;
-      max-width: 85vw;
+      left: -400px;
+      width: 380px;
+      max-width: 90vw;
       height: 100vh;
       background: #090e1a;
       border-right: 1px solid var(--card-border);
@@ -794,7 +872,7 @@
       transition: left 0.25s cubic-bezier(0.16, 1, 0.3, 1);
       display: flex;
       flex-direction: column;
-      padding: 1.5rem;
+      padding: 1.25rem;
       overflow-y: auto;
     }
 
@@ -806,7 +884,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 1.5rem;
+      margin-bottom: 1rem;
       padding-bottom: 0.75rem;
       border-bottom: 1px solid var(--card-border);
     }
@@ -815,17 +893,18 @@
       background: var(--card-bg);
       border: 1px solid var(--card-border);
       border-radius: 10px;
-      margin-bottom: 0.75rem;
+      margin-bottom: 0.65rem;
       overflow: hidden;
     }
 
     .level-bar {
-      padding: 0.85rem 1rem;
+      padding: 0.75rem 1rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
       cursor: pointer;
       font-weight: 600;
+      font-size: 0.9rem;
     }
 
     .level-arrow {
@@ -852,16 +931,26 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0.5rem 0;
-      font-size: 0.85rem;
+      padding: 0.45rem 0;
+      font-size: 0.82rem;
       border-bottom: 1px dashed #152238;
+      gap: 6px;
     }
 
     .topic-row a {
       color: var(--accent-light);
       text-decoration: none;
-      margin-left: 0.4rem;
       font-size: 0.75rem;
+      white-space: nowrap;
+      background: rgba(56, 189, 248, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      transition: background 0.2s;
+    }
+
+    .topic-row a:hover {
+      background: rgba(56, 189, 248, 0.25);
     }
 
     .btn-create-topic {
@@ -870,9 +959,9 @@
       background: #111b2f;
       border: 1px dashed #223456;
       color: var(--accent-light);
-      padding: 0.55rem;
+      padding: 0.5rem;
       border-radius: 6px;
-      font-size: 0.85rem;
+      font-size: 0.82rem;
       cursor: pointer;
       font-weight: 500;
     }
@@ -926,6 +1015,7 @@
       cursor: pointer;
     }
 
+    /* Модалка времени */
     .dialog-backdrop {
       position: fixed;
       inset: 0;
@@ -1115,7 +1205,7 @@
 
   <!-- Верхняя панель -->
   <div class="top-header-bar">
-    <button class="btn-hamburger" onclick="toggleDrawer()" title="Меню тем">
+    <button class="btn-hamburger" onclick="toggleDrawer()" title="Темы по уровням">
       <span></span>
       <span></span>
       <span></span>
@@ -1139,70 +1229,17 @@
     <p>Отслеживайте время занятий, регулярность и ежедневные цели</p>
   </div>
 
-  <!-- Меню тем -->
+  <!-- Меню тем строго A1, A2, B1, B2, C1, C2 -->
   <div class="drawer-backdrop" id="drawer-backdrop" onclick="toggleDrawer()"></div>
   <div class="side-drawer" id="side-drawer">
     <div class="drawer-head">
-      <h3>Темы по уровням</h3>
+      <div>
+        <h3 style="font-size: 1.1rem; margin-bottom: 2px;">Темы по уровням</h3>
+      </div>
       <button onclick="toggleDrawer()" style="background:none; border:none; color:var(--text-muted); font-size:1.4rem; cursor:pointer;">&times;</button>
     </div>
 
-    <div class="level-block opened" id="block-a1">
-      <div class="level-bar" onclick="toggleLevelBlock('a1')">
-        <span>A1 (Anfänger)</span>
-        <span class="level-arrow">▼</span>
-      </div>
-      <div class="level-content">
-        <div id="topics-a1"></div>
-        <button class="btn-create-topic" id="btn-show-add-a1" onclick="showInlineAddTopic('A1')">+ Добавить тему</button>
-        <div class="inline-topic-form" id="inline-form-a1">
-          <input type="text" id="topic-title-a1" placeholder="Название темы..." />
-          <input type="text" id="topic-url-a1" placeholder="Ссылка на источник..." />
-          <div class="inline-topic-form-btns">
-            <button class="btn-inline-topic-save" onclick="saveInlineTopic('A1')">Сохранить</button>
-            <button class="btn-inline-topic-cancel" onclick="hideInlineAddTopic('A1')">Отмена</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="level-block" id="block-a2">
-      <div class="level-bar" onclick="toggleLevelBlock('a2')">
-        <span>A2 (Grundlegende)</span>
-        <span class="level-arrow">▼</span>
-      </div>
-      <div class="level-content">
-        <div id="topics-a2"></div>
-        <button class="btn-create-topic" id="btn-show-add-a2" onclick="showInlineAddTopic('A2')">+ Добавить тему</button>
-        <div class="inline-topic-form" id="inline-form-a2">
-          <input type="text" id="topic-title-a2" placeholder="Название темы..." />
-          <input type="text" id="topic-url-a2" placeholder="Ссылка на источник..." />
-          <div class="inline-topic-form-btns">
-            <button class="btn-inline-topic-save" onclick="saveInlineTopic('A2')">Сохранить</button>
-            <button class="btn-inline-topic-cancel" onclick="hideInlineAddTopic('A2')">Отмена</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="level-block" id="block-b1">
-      <div class="level-bar" onclick="toggleLevelBlock('b1')">
-        <span>B1 (Fortgeschrittene)</span>
-        <span class="level-arrow">▼</span>
-      </div>
-      <div class="level-content">
-        <div id="topics-b1"></div>
-        <button class="btn-create-topic" id="btn-show-add-b1" onclick="showInlineAddTopic('B1')">+ Добавить тему</button>
-        <div class="inline-topic-form" id="inline-form-b1">
-          <input type="text" id="topic-title-b1" placeholder="Название темы..." />
-          <input type="text" id="topic-url-b1" placeholder="Ссылка на источник..." />
-          <div class="inline-topic-form-btns">
-            <button class="btn-inline-topic-save" onclick="saveInlineTopic('B1')">Сохранить</button>
-            <button class="btn-inline-topic-cancel" onclick="hideInlineAddTopic('B1')">Отмена</button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <div id="drawer-levels-container"></div>
   </div>
 
   <div class="main-wrap">
@@ -1243,10 +1280,22 @@
 
         <h3 style="font-size: 0.9rem; margin-top: 1.2rem; margin-bottom: 0.4rem; color: #cbd5e1;">Список по времени</h3>
         <div class="activity-breakdown-list" id="alltime-breakdown"></div>
+
+        <div class="chart-section-card">
+          <div class="chart-header-row">
+            <span>Завершённость уровней</span>
+            <span style="color: var(--text-muted); font-size: 0.8rem;">По темам</span>
+          </div>
+          <div class="level-progress-list" id="level-progress-list"></div>
+          <div class="level-progress-total">
+            <span>Всего по уровням</span>
+            <strong id="level-progress-total-value">0 из 0 · 0%</strong>
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- ГОД (Хитмап со строгой сеткой Пн–Вс) -->
+    <!-- ГОД -->
     <div id="section-year" class="view-section active">
       <div class="card-dashboard">
         <div class="nav-switch-row">
@@ -1262,7 +1311,6 @@
           </div>
 
           <div class="heatmap-body">
-            <!-- 7 дней недели: M (Пн), W (Ср), F (Пт), S (Вс) -->
             <div class="days-labels">
               <span>M</span><span>W</span><span>F</span><span>S</span>
             </div>
@@ -1323,7 +1371,7 @@
       <div class="card-dashboard">
         <div class="nav-switch-row">
           <button class="btn-arrow" onclick="moveDay(-1)">&lt;</button>
-          <h2 id="day-view-title">Вторник, 22 сентября 2026</h2>
+          <h2 id="day-view-title">Суббота, 26 сентября 2026</h2>
           <button class="btn-arrow" onclick="moveDay(1)">&gt;</button>
         </div>
         <div id="day-summary-banner" style="text-align: center; color: var(--accent-light); font-size: 0.9rem; margin-bottom: 0.5rem;"></div>
@@ -1337,6 +1385,7 @@
         <div>
           <h3 id="day-box-title" style="font-size: 1.15rem;">Задачи</h3>
           <p id="day-box-subtitle" style="color: var(--text-muted); font-size: 0.85rem;"></p>
+
         </div>
         <button id="btn-clear-day-all" onclick="clearEntireDaySessions()" style="display:none; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.35); color:#f87171; border-radius:6px; font-size:0.75rem; padding:4px 9px; cursor:pointer;">Сбросить время</button>
       </div>
@@ -1431,18 +1480,136 @@
       window.tasksByDate = rawStoredTasks;
     }
 
-    window.grammarTopics = JSON.parse(localStorage.getItem("dt_topics")) || {
+    // ПОЛНОСТЬЮ СОПОСТАВЛЕННЫЕ ТОЧНЫЕ ССЫЛКИ ИЗ ВАШЕГО СПИСКА
+    const SHEIMAN_ROADMAP_V5 = {
       "A1": [
-        { id: 1, name: "Алфавит и правила чтения", done: true, url: "" },
-        { id: 2, name: "Спряжение haben / sein", done: false, url: "https://de.wikipedia.org" }
+        { id: 101, name: "Чтение и алфавит", done: false, url: "https://www.youtube.com/watch?v=0PUUkTu5vMw" },
+        { id: 102, name: "Местоимения (личные, притяжат.)", done: false, url: "https://deutschonline.ru/articles/prityazhatelnye-mestoimeniya-v-nemeckom/" },
+        { id: 103, name: "Порядок слов в предложении", done: false, url: "https://deutschonline.ru/articles/poryadok-slov-v-nemeckom-predlozhenii/" },
+        { id: 104, name: "Артикли (der, die, das)", done: false, url: "https://deutsch-mit-yehor.com/grammatika/urok-7-artikli-v-nemeckom-jazyke/" },
+        { id: 105, name: "Präsens (настоящее время)", done: false, url: "https://www.de-online.ru/prasens" },
+        { id: 106, name: "Числительные 1 - 20", done: false, url: "https://deutschonline.ru/articles/cifry-i-chisla-na-nemeckom-yazyke/" },
+        { id: 107, name: "Haben, sein", done: false, url: "https://www.de-online.ru/glagoly-sein-i-haben" },
+        { id: 108, name: "Отделяемые приставки", done: false, url: "https://deutsch-mit-yehor.com/grammatika/urok-20-glagoly-s-otdeljaemymi-pristavkami-v-nemeckom-jazyke/" },
+        { id: 109, name: "Числительные 21 - 100", done: false, url: "https://speakasap.com/de/grammar/chislitelnye/?srsltid=AfmBOoorcAYbmj9QIsRrRWxzdljNtDXXDKmJPWJE_Ph--HrtXM7SUNZg" },
+        { id: 110, name: "nicht VS kein (Отрицание)", done: false, url: "https://www.youtube.com/watch?v=6Ts2WrjtJ_c" },
+        { id: 111, name: "Множественное число существительных", done: false, url: "https://deutsch-mit-yehor.com/grammatika/urok-10-mnozhestvennoe-chislo-imjon-sushhestvitelnyh/" },
+        { id: 112, name: "Союзы: und / aber / denn / oder", done: false, url: "https://german.ovcharov.me/articles/urovni/a1/grammatika/soiuzy-und-aber-oder-denn/" },
+        { id: 113, name: "Правильные и неправильные глаголы", done: false, url: "https://deutsch-mit-yehor.com/grammatika/urok-2-sprjazhenie-pravilnyh-glagolov-v-nemeckom-jazyke/" },
+        { id: 114, name: "Akkusativ + предлоги", done: false, url: "https://www.de-online.ru/vinitelnyj-padezh-v-nemetskom-yazyke" },
+        { id: 115, name: "Futur 1 (Будущее время)", done: false, url: "https://deutsch-mit-yehor.com/grammatika/urok-39-budushhee-vremja-futur-i-v-nemeckom-jazyke/" }
       ],
       "A2": [
-        { id: 3, name: "Прошедшее время Perfekt", done: false, url: "" }
+        { id: 201, name: "Неправильные глаголы (список A2)", done: false, url: "https://www.de-online.ru/samyj_polnyj_spisok_nepravilnykh_glagolov" },
+        { id: 202, name: "Hatten / waren", done: false, url: "https://deutsch-lernen.zum.de/wiki/Sein_und_haben_-_im_Pr%C3%A4teritum_(Interaktive_%C3%9Cbungen)" },
+        { id: 203, name: "Модальные глаголы", done: false, url: "https://deutschonline.ru/articles/modalnye-glagoly-v-nemeckom-yazyke/" },
+        { id: 204, name: "Придаточные предложения (с союзом dass)", done: false, url: "https://a1c2deutschonline.com/grammatika-nemeckogo-a2/pridatochnye-predlozheniya-s-soyuzom-dass" },
+        { id: 205, name: "Все числительные", done: false, url: "https://speakasap.com/de/grammar/chislitelnye/?srsltid=AfmBOoorcAYbmj9QIsRrRWxzdljNtDXXDKmJPWJE_Ph--HrtXM7SUNZg" },
+        { id: 206, name: "Dativ + предлоги", done: false, url: "https://www.de-online.ru/dativ" },
+        { id: 207, name: "Возвратные глаголы 'sich'", done: false, url: "https://deutsch-mit-yehor.com/grammatika/urok-18-vozvratnye-glagoly-v-nemeckom-jazyke/" },
+        { id: 208, name: "Степени сравнения прилагательных", done: false, url: "https://deutschonline.ru/articles/stepeni-sravneniya-prilagatelnyh-v-nemeckom-yazyke/" },
+        { id: 209, name: "Глаголы с управлением", done: false, url: "https://www.de-online.ru/glagoly-s-upravleniem" },
+        { id: 210, name: "Частичка 'Zu' (Инфинитив)", done: false, url: "https://www.youtube.com/watch?v=cYI3Q4n0dqk" },
+        { id: 211, name: "Relativpronomen (Относительные местоимения)", done: false, url: "https://www.youtube.com/watch?v=e2pyHLZgU8g" },
+        { id: 212, name: "Прошедшее время Perfekt", done: false, url: "https://www.youtube.com/watch?v=HuLLkv3uP5c" },
+        { id: 213, name: "Прошедшее время Präteritum", done: false, url: "https://www.youtube.com/watch?v=nciBnN68TJs" },
+        { id: 214, name: "Повелительное наклонение (Imperativ)", done: false, url: "https://www.youtube.com/watch?v=qqQv1032xZs" }
       ],
       "B1": [
-        { id: 4, name: "Придаточные предложения (weil, dass, obwohl)", done: false, url: "" }
+        { id: 301, name: "Склонение прилагательных", done: false, url: "https://www.de-online.ru/index/sklonenie_prilagatelnykh_v_nemeckom_yazyke/0-68" },
+        { id: 302, name: "Сильные/слабые глаголы в Präteritum", done: false, url: "https://www.youtube.com/watch?v=R_sGBMayNm4" },
+        { id: 303, name: "Косвенная речь", done: false, url: "https://deutsch-sprechen.ru/%D0%BA%D0%BE%D1%81%D0%B2%D0%B5%D0%BD%D0%BD%D0%B0%D1%8F-%D1%80%D0%B5%D1%87%D1%8C/" },
+        { id: 304, name: "Глагол werden", done: false, url: "https://deutsch-mit-yehor.com/grammatika/urok-46-glagol-werden-v-nemeckom-jazyke/" },
+        { id: 305, name: "Указательные местоимения", done: false, url: "https://deutschonline.ru/articles/ukazatelnye-mestoimeniya-v-nemeckom-yazyke/" },
+        { id: 306, name: "Придаточные времени Temporalsatz", done: false, url: "https://www.de-online.ru/pridatochniye-vremeni" },
+        { id: 307, name: "Придаточные причины Kausalsatz", done: false, url: "https://www.de-online.ru/pridatochnye-predlozheniya-v-nemeckom" },
+        { id: 308, name: "Konjunktiv (Präsens, Modalverben)", done: false, url: "https://www.de-online.ru/index/konjunktiv_1_uslovnaja_forma_1/0-111" },
+        { id: 309, name: "Plusquamperfekt", done: false, url: "https://www.youtube.com/watch?v=ugvQkf8RmFI" },
+        { id: 310, name: "Genitiv и предлоги", done: false, url: "https://www.de-online.ru/genitiv" },
+        { id: 311, name: "Пассивный залог Passiv", done: false, url: "https://www.youtube.com/watch?v=uuPszpA12QA" },
+        { id: 312, name: "Прилагательные с управлением", done: false, url: "https://berlinerdeutsch.ru/blog/tpost/vs6emzzmc1-chto-takoe-upravlyaemie-prilagatelnye-v" },
+        { id: 313, name: "N-Deklination (Слабое склонение)", done: false, url: "https://deutsch-mit-yehor.com/grammatika/urok-31-slaboe-sklonenie-imen-sushhestvitelnyh-n-deklination/" }
+      ],
+      "B2": [
+        { id: 401, name: "Konjunktiv II", done: false, url: "https://learningapps.org/tools/71/37/watch?id=pno3j35a520" },
+        { id: 402, name: "Глагол lassen", done: false, url: "https://deutsch-mit-yehor.com/grammatika/urok-47-glagol-lassen-v-nemeckom-jazyke/" },
+        { id: 403, name: "Неопределенные местоимения", done: false, url: "https://deutschonline.ru/articles/neopredelennye-mestoimeniya-v-nemeckom-yazyke/" },
+        { id: 404, name: "Порядок слов в предложениях", done: false, url: "https://www.de-online.ru/poryadok-slov-v-nemetskom-predlozhenii" },
+        { id: 405, name: "Все придаточные предложения", done: false, url: "https://www.de-online.ru/pridatochnye-predlozheniya-v-nemeckom" },
+        { id: 406, name: "Nomen-Verb-Verbindungen (устойчивые связки)", done: false, url: "https://a1c2deutschonline.com/grammatika-nemeckogo-b2/ustoychivye-glagolno-imennye-slovosochetaniya-nomen-verb-verbindungen" },
+        { id: 407, name: "Modalpartikeln", done: false, url: "https://www.youtube.com/watch?v=wv_xX_RV19I" },
+        { id: 408, name: "Partizip I", done: false, url: "https://www.de-online.ru/index/0-61" },
+        { id: 409, name: "Partizip II", done: false, url: "https://www.de-online.ru/index/0-61" },
+        { id: 410, name: "Союзные слова", done: false, url: "https://www.de-online.ru/soyuzy-v-nemetskom-yazyke" },
+        { id: 411, name: "Существительные с управлением", done: false, url: "https://berlinerdeutsch.ru/blog/tpost/jzhn100ab1-chto-takoe-upravlyaemie-suschestvitelnye" },
+        { id: 412, name: "'Um zu', 'Als dass', 'so dass'", done: false, url: "https://www.de-online.ru/index/vyrazhenie_pozitivnogo_so_dass_tak_chto_nechto_proiskhodit_i_negativnogo_als_dass_tak_chto_dejst" }
+      ],
+      "C1": [
+        { id: 501, name: "Предлоги места, времени", done: false, url: "https://berlinerdeutsch.ru/blog/tpost/7fead5no31-lokale-prpositionen-predlogi-mesta-v-nem" },
+        { id: 502, name: "Двойные союзы", done: false, url: "https://www.de-online.ru/soyuzy-v-nemetskom-yazyke" },
+        { id: 503, name: "Субстантивированные прилагательные", done: false, url: "https://www.studygerman.ru/handbook/substantivirovannye-prilagatelnye" },
+        { id: 504, name: "Союзы соответствующего уровня", done: false, url: "https://www.de-online.ru/soyuzy-v-nemetskom-yazyke" },
+        { id: 505, name: "Subjekt- und Objektsätze", done: false, url: "https://videouroki.net/video/45-nebens-tze-subjekt-und-objekts-tze-temporals-tze-konzessivs-tze.html" },
+        { id: 506, name: "Nominalisierung / Verbalisierung", done: false, url: "https://mein-deutschbuch.de/nominalisierung.html" },
+        { id: 507, name: "Orts- und Zeitangaben", done: false, url: "https://www.sofatutor.com/deutsch/videos/orts-und-zeitangaben" },
+        { id: 508, name: "Präpositionaladverbien (worüber, wofür...)", done: false, url: "https://a1c2deutschonline.com/uroven-c1-po-nemeckomu-yazyku/grammatika-nemeckogo-c1/konstrukciya-gerundiy-modales-partizip-v" },
+        { id: 509, name: "Modales Partizip", done: false, url: "https://a1c2deutschonline.com/uroven-c1-po-nemeckomu-yazyku/grammatika-nemeckogo-c1/konstrukciya-gerundiy-modales-partizip-v" }
+      ],
+      "C2": [
+        { id: 601, name: "Из вербального стиля в номинальный", done: false, url: "https://mein-deutschbuch.de/nominalisierung.html" },
+        { id: 602, name: "Деепричастные обороты", done: false, url: "https://online-teacher.ru/blog/%D0%B4%D0%B5%D0%B5%D0%BF%D1%80%D0%B8%D1%87%D0%B0%D1%81%D1%82%D0%B8%D0%B5-%D0%B2-%D0%BD%D0%B5%D0%BC%D0%B5%D1%86%D0%BA%D0%BE%D0%BC-%D1%8F%D0%B7%D1%8B%D0%BA%D0%B5" },
+        { id: 603, name: "Знание редких языковых средств", done: false, url: "https://a1c2deutschonline.com/testy-po-nemeckomu-yazyku/chto-nuzhno-znat-dlya-urovnya-c2-nemeckiy" },
+        { id: 604, name: "Неправильные глаголы уровня C2", done: false, url: "https://a1c2deutschonline.com/grammatika-nemeckogo-c2/spisok-nepravilnyh-glagolov-dlya-urovnya-s2" },
+        { id: 605, name: "Partizipien als Adjektive", done: false, url: "https://mein-deutschbuch.de/partizipien-als-adjektive.html" },
+        { id: 606, name: "Управление глаголов (C2)", done: false, url: "https://a1c2deutschonline.com/uroven-c2-po-nemeckomu-yazyku/grammatika-nemeckogo-c2/upravlenie-glagolov" }
+      ],
+      "Общие источники": [
+        { id: 701, name: "Telegram-канал Sheiman Deutsch", done: false, url: "https://t.me/sheimande" },
+        { id: 702, name: "Telegram-канал Msheyman", done: false, url: "https://t.me/msheyman" }
       ]
     };
+
+    const TOPICS_STORAGE_KEY = "dt_topics_v6";
+    const levelsForMigration = ["A1", "A2", "B1", "B2", "C1", "C2", "Общие источники"];
+    let storedTopics = localStorage.getItem(TOPICS_STORAGE_KEY) || localStorage.getItem("dt_topics_v5");
+    if (!storedTopics) {
+      window.grammarTopics = SHEIMAN_ROADMAP_V5;
+      localStorage.setItem(TOPICS_STORAGE_KEY, JSON.stringify(SHEIMAN_ROADMAP_V5));
+      setTimeout(() => { if (window.pushCloudData) window.pushCloudData(); }, 1200);
+    } else {
+      try {
+        const savedTopics = JSON.parse(storedTopics);
+        window.grammarTopics = {};
+        levelsForMigration.forEach(level => {
+          const savedById = new Map((savedTopics[level] || []).map(topic => [topic.id, topic]));
+          window.grammarTopics[level] = (SHEIMAN_ROADMAP_V5[level] || []).map(topic => {
+            const savedTopic = savedById.get(topic.id);
+            const savedSources = savedTopic?.sources || (savedTopic?.url ? [savedTopic.url] : []);
+            return {
+              ...topic,
+              url: "",
+              sources: savedSources,
+              done: savedTopic ? Boolean(savedTopic.done) : topic.done
+            };
+          });
+          const canonicalIds = new Set(window.grammarTopics[level].map(topic => topic.id));
+          window.grammarTopics[level].push(...(savedTopics[level] || []).filter(topic => !canonicalIds.has(topic.id)));
+        });
+        localStorage.setItem(TOPICS_STORAGE_KEY, JSON.stringify(window.grammarTopics));
+      } catch (e) {
+        window.grammarTopics = SHEIMAN_ROADMAP_V5;
+        localStorage.setItem(TOPICS_STORAGE_KEY, JSON.stringify(SHEIMAN_ROADMAP_V5));
+      }
+    }
+    window.grammarTopics["Общие источники"] = window.grammarTopics["Общие источники"] || SHEIMAN_ROADMAP_V5["Общие источники"];
+    if (!localStorage.getItem("dt_sources_reset_v1")) {
+      Object.values(window.grammarTopics).forEach(topics => topics.forEach(topic => {
+        topic.sources = [];
+        topic.url = "";
+      }));
+      localStorage.setItem("dt_sources_reset_v1", "1");
+    }
+    localStorage.setItem(TOPICS_STORAGE_KEY, JSON.stringify(window.grammarTopics));
 
     function getDayTotalMinutes(dateKey) {
       const list = window.loggedActivities[dateKey];
@@ -1468,7 +1635,7 @@
       localStorage.setItem("dt_activities_v2", JSON.stringify(window.loggedActivities));
       localStorage.setItem("dt_tags", JSON.stringify(window.tagsCatalog));
       localStorage.setItem("dt_tasks_by_date", JSON.stringify(window.tasksByDate));
-      localStorage.setItem("dt_topics", JSON.stringify(window.grammarTopics));
+      localStorage.setItem(TOPICS_STORAGE_KEY, JSON.stringify(window.grammarTopics));
       if (window.pushCloudData) {
         window.pushCloudData();
       }
@@ -1502,7 +1669,38 @@
       if (tabName === 'day') renderDayView();
     }
 
+    function renderLevelCompletionChart() {
+      const levels = ["A1", "A2", "B1", "B2", "C1", "C2"];
+      const list = document.getElementById("level-progress-list");
+      const totalValue = document.getElementById("level-progress-total-value");
+      if (!list || !totalValue) return;
+
+      let totalTopics = 0;
+      let completedTopics = 0;
+      list.innerHTML = levels.map(level => {
+        const topics = Array.isArray(window.grammarTopics[level]) ? window.grammarTopics[level] : [];
+        const completed = topics.filter(topic => topic.done).length;
+        const percent = topics.length ? Math.round((completed / topics.length) * 100) : 0;
+        totalTopics += topics.length;
+        completedTopics += completed;
+
+        return `
+          <div class="level-progress-row" title="${completed} из ${topics.length} тем завершено">
+            <span class="level-progress-name">${level}</span>
+            <div class="level-progress-track" role="progressbar" aria-label="Прогресс ${level}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}">
+              <div class="level-progress-fill" style="width: ${percent}%"></div>
+            </div>
+            <span class="level-progress-value">${completed}/${topics.length} · ${percent}%</span>
+          </div>
+        `;
+      }).join("");
+
+      const totalPercent = totalTopics ? Math.round((completedTopics / totalTopics) * 100) : 0;
+      totalValue.textContent = `${completedTopics} из ${totalTopics} · ${totalPercent}%`;
+    }
+
     function renderAllTimeView() {
+      renderLevelCompletionChart();
       let totalMin = 0;
       let studyDays = 0;
       const tagMap = {};
@@ -1522,7 +1720,9 @@
 
       let doneTopicsCount = 0;
       Object.values(window.grammarTopics).forEach(list => {
-        doneTopicsCount += list.filter(t => t.done).length;
+        if (Array.isArray(list)) {
+          doneTopicsCount += list.filter(t => t.done).length;
+        }
       });
 
       const totalHours = (totalMin / 60).toFixed(1);
@@ -1580,7 +1780,6 @@
       }
     }
 
-    /* ИСПРАВЛЕННЫЙ ХИТМАП: строго 1 ряд = Понедельник, 7 ряд = Воскресенье */
     function renderYearHeatmap() {
       const matrix = document.getElementById("heatmap-matrix");
       matrix.innerHTML = "";
@@ -1590,12 +1789,9 @@
       const firstDay = new Date(activeYear, 0, 1);
       const lastDay = new Date(activeYear, 11, 31);
 
-      // В JavaScript getDay(): 0 = Вс, 1 = Пн, 2 = Вт ... 6 = Сб.
-      // Преобразуем к формату: 0 = Понедельник, 6 = Воскресенье.
       let startDayOfWeek = firstDay.getDay() - 1;
       if (startDayOfWeek === -1) startDayOfWeek = 6;
 
-      // 1. Вставляем невидимые заглушки для первой недели, если год начался не с понедельника
       for (let i = 0; i < startDayOfWeek; i++) {
         const emptyOffset = document.createElement("div");
         emptyOffset.className = "heat-square empty-offset";
@@ -1606,7 +1802,6 @@
       let learningDays = 0;
       const tagFrequency = {};
 
-      // 2. Отрисовываем все дни года
       for (let curr = new Date(firstDay); curr <= lastDay; curr.setDate(curr.getDate() + 1)) {
         const dateKey = `${curr.getFullYear()}-${String(curr.getMonth() + 1).padStart(2, '0')}-${String(curr.getDate()).padStart(2, '0')}`;
         const square = document.createElement("div");
@@ -1632,7 +1827,6 @@
           else square.style.background = "var(--heat-15)";
         }
 
-        // Подсказка с днем недели
         const dayNames = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
         square.title = `${dateKey} (${dayNames[curr.getDay()]}): ${dayMin} мин`;
         
@@ -1762,7 +1956,7 @@
           badge.className = "day-session-badge";
           badge.innerHTML = `
             <span>${s.minutes} мин • ${s.tag}</span>
-            <button class="day-session-del" onclick="removeDaySession(${s.id})" title="Удалить только эту запись">&times;</button>
+            <button class="day-session-del" onclick="removeDaySession(${s.id})" title="Удалить эту запись">&times;</button>
           `;
           sessionsList.appendChild(badge);
         });
@@ -1786,7 +1980,7 @@
         
         let moveBtnHtml = "";
         if (isPastDay && !t.done) {
-          moveBtnHtml = `<button class="btn-task-move" onclick="moveTaskToToday(${t.id})" title="Перенести в задачи на сегодня">→ На сегодня</button>`;
+          moveBtnHtml = `<button class="btn-task-move" onclick="moveTaskToToday(${t.id})" title="Перенести на сегодня">→ На сегодня</button>`;
         }
 
         item.innerHTML = `
@@ -1884,31 +2078,117 @@
       }, msToMidnight);
     }
 
+    // Боковое меню тем
     function toggleDrawer() {
       document.getElementById("side-drawer").classList.toggle("active");
       document.getElementById("drawer-backdrop").classList.toggle("active");
     }
 
-    function toggleLevelBlock(lvl) {
-      document.getElementById(`block-${lvl}`).classList.toggle("opened");
+    function toggleLevelBlock(cleanLvl) {
+      const el = document.getElementById(`block-${cleanLvl}`);
+      if (el) el.classList.toggle("opened");
+    }
+
+    function sanitizeLevelId(lvl) {
+      return lvl.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+    }
+
+    function getTopicSources(item) {
+      const sources = Array.isArray(item.sources) ? item.sources : (item.url ? [item.url] : []);
+      return sources.filter(source => /^https?:\/\//i.test(source));
+    }
+
+    function toggleTopicSourceEditor(lvl, id) {
+      const cleanId = sanitizeLevelId(lvl);
+      const editor = document.getElementById(`source-editor-${cleanId}-${id}`);
+      if (!editor) return;
+      editor.style.display = editor.style.display === "none" ? "block" : "none";
+    }
+
+    function saveTopicSources(lvl, id) {
+      const cleanId = sanitizeLevelId(lvl);
+      const input = document.getElementById(`source-input-${cleanId}-${id}`);
+      if (!input) return;
+
+      const sources = input.value
+        .split(/\r?\n/)
+        .map(source => source.trim())
+        .filter(source => /^https?:\/\//i.test(source));
+
+      window.grammarTopics[lvl] = window.grammarTopics[lvl].map(item => item.id === id
+        ? { ...item, url: sources[0] || "", sources }
+        : item
+      );
+      triggerSync();
+      renderGrammarTopics();
     }
 
     function renderGrammarTopics() {
-      ['A1', 'A2', 'B1'].forEach(lvl => {
-        const box = document.getElementById(`topics-${lvl.toLowerCase()}`);
-        box.innerHTML = "";
-        (window.grammarTopics[lvl] || []).forEach(item => {
+      const levelsOrder = ["A1", "A2", "B1", "B2", "C1", "C2", "Общие источники"];
+      const container = document.getElementById("drawer-levels-container");
+      container.innerHTML = "";
+
+      levelsOrder.forEach(lvl => {
+        const cleanId = sanitizeLevelId(lvl);
+        const topics = window.grammarTopics[lvl] || [];
+        const isDefaultOpened = lvl === "A1" ? "opened" : "";
+
+        const block = document.createElement("div");
+        block.className = `level-block ${isDefaultOpened}`;
+        block.id = `block-${cleanId}`;
+
+        block.innerHTML = `
+          <div class="level-bar" onclick="toggleLevelBlock('${cleanId}')">
+            <span>Уровень ${lvl}</span>
+            <span class="level-arrow">▼</span>
+          </div>
+          <div class="level-content">
+            <div id="topics-${cleanId}"></div>
+            <button class="btn-create-topic" id="btn-show-add-${cleanId}" onclick="showInlineAddTopic('${lvl}')">+ Добавить тему</button>
+            <div class="inline-topic-form" id="inline-form-${cleanId}">
+              <input type="text" id="topic-title-${cleanId}" placeholder="Название темы..." />
+              <input type="text" id="topic-url-${cleanId}" placeholder="Ссылка на источник (https://...)" />
+              <div class="inline-topic-form-btns">
+                <button class="btn-inline-topic-save" onclick="saveInlineTopic('${lvl}')">Сохранить</button>
+                <button class="btn-inline-topic-cancel" onclick="hideInlineAddTopic('${lvl}')">Отмена</button>
+              </div>
+            </div>
+          </div>
+        `;
+
+        container.appendChild(block);
+
+        const topicsBox = block.querySelector(`#topics-${cleanId}`);
+        topics.forEach(item => {
           const row = document.createElement("div");
           row.className = "topic-row";
           row.innerHTML = `
-            <div style="display:flex; align-items:center; gap:0.5rem;">
+            <div style="display:flex; align-items:center; gap:0.5rem; flex:1; min-width:0;">
               <input type="checkbox" ${item.done ? 'checked' : ''} onchange="toggleTopicState('${lvl}', ${item.id})" />
-              <span>${item.name}</span>
-              ${item.url ? `<a href="${item.url}" target="_blank">🔗 источник</a>` : ''}
+              <span style="${item.done ? 'text-decoration: line-through; opacity: 0.6;' : ''}; overflow:hidden; text-overflow:ellipsis;">${item.name}</span>
             </div>
-            <button onclick="removeTopic('${lvl}', ${item.id})" style="background:none; border:none; color:var(--text-muted); cursor:pointer;">&times;</button>
+            <span class="topic-sources" data-topic-id="${item.id}"></span>
+            <button onclick="toggleTopicSourceEditor('${lvl}', ${item.id})" title="Редактировать источники" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:1rem; padding: 0 4px;">✎</button>
+            <button onclick="removeTopic('${lvl}', ${item.id})" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:1.1rem; padding: 0 4px;">&times;</button>
+            <div id="source-editor-${cleanId}-${item.id}" style="display:none; flex-basis:100%; margin:0.35rem 0 0 1.5rem;">
+              <textarea id="source-input-${cleanId}-${item.id}" rows="3" placeholder="Вставьте URL, по одному на строку" style="width:100%; box-sizing:border-box; resize:vertical;">${getTopicSources(item).join("\n")}</textarea>
+              <div style="display:flex; gap:0.5rem; margin-top:0.35rem;">
+                <button onclick="saveTopicSources('${lvl}', ${item.id})" style="cursor:pointer;">Сохранить</button>
+                <button onclick="toggleTopicSourceEditor('${lvl}', ${item.id})" style="cursor:pointer;">Отмена</button>
+              </div>
+            </div>
           `;
-          box.appendChild(row);
+          const sourcesBox = row.querySelector(".topic-sources");
+          getTopicSources(item).forEach((source, index) => {
+            const link = document.createElement("a");
+            link.href = source;
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+            link.title = "Перейти к материалу";
+            link.textContent = `🔗 ${getTopicSources(item).length > 1 ? `источник ${index + 1}` : "источник"}`;
+            sourcesBox.appendChild(link);
+          });
+          topicsBox.appendChild(row);
         });
       });
     }
@@ -1926,35 +2206,40 @@
     }
 
     function showInlineAddTopic(lvl) {
-      const lower = lvl.toLowerCase();
-      document.getElementById(`btn-show-add-${lower}`).style.display = "none";
-      const form = document.getElementById(`inline-form-${lower}`);
+      const cleanId = sanitizeLevelId(lvl);
+      document.getElementById(`btn-show-add-${cleanId}`).style.display = "none";
+      const form = document.getElementById(`inline-form-${cleanId}`);
       form.style.display = "flex";
-      document.getElementById(`topic-title-${lower}`).focus();
+      document.getElementById(`topic-title-${cleanId}`).focus();
     }
 
     function hideInlineAddTopic(lvl) {
-      const lower = lvl.toLowerCase();
-      document.getElementById(`btn-show-add-${lower}`).style.display = "block";
-      const form = document.getElementById(`inline-form-${lower}`);
+      const cleanId = sanitizeLevelId(lvl);
+      document.getElementById(`btn-show-add-${cleanId}`).style.display = "block";
+      const form = document.getElementById(`inline-form-${cleanId}`);
       form.style.display = "none";
-      document.getElementById(`topic-title-${lower}`).value = "";
-      document.getElementById(`topic-url-${lower}`).value = "";
+      document.getElementById(`topic-title-${cleanId}`).value = "";
+      document.getElementById(`topic-url-${cleanId}`).value = "";
     }
 
     function saveInlineTopic(lvl) {
-      const lower = lvl.toLowerCase();
-      const titleInput = document.getElementById(`topic-title-${lower}`);
-      const urlInput = document.getElementById(`topic-url-${lower}`);
+      const cleanId = sanitizeLevelId(lvl);
+      const titleInput = document.getElementById(`topic-title-${cleanId}`);
+      const urlInput = document.getElementById(`topic-url-${cleanId}`);
 
       const name = titleInput.value.trim();
       if (!name) return;
 
       const url = urlInput.value.trim();
+      if (!window.grammarTopics[lvl]) {
+        window.grammarTopics[lvl] = [];
+      }
+
       window.grammarTopics[lvl].push({
         id: Date.now(),
         name: name,
         url: url,
+        sources: url ? [url] : [],
         done: false
       });
 
@@ -1963,6 +2248,7 @@
       renderGrammarTopics();
     }
 
+    // Теги активностей
     function renderActivityChips() {
       const wrapper = document.getElementById("chips-container");
       wrapper.innerHTML = "";
